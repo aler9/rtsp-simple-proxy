@@ -21,6 +21,8 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
 
 ## Usage
 
+#### Basic usage
+
 1. Create a configuration file named `conf.yml`, placed in the same folder of the executable, with the following content:
     ```
     server:
@@ -48,6 +50,23 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
    ```
    vlc rtsp://localhost:8554/test1
    ```
+
+#### Full command-line usage
+
+```
+usage: rtsp-simple-proxy [<flags>] <confpath>
+
+rtsp-simple-proxy v0.0.0
+
+RTSP proxy.
+
+Flags:
+  --help     Show context-sensitive help (also try --help-long and --help-man).
+  --version  print rtsp-simple-proxy version
+
+Args:
+  <confpath>  path of the config file. Use 'stdin' to read config from stdin
+```
 
 ## Links
 
