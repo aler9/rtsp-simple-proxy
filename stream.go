@@ -23,10 +23,10 @@ const (
 	_CHECK_STREAM_INTERVAL = 6 * time.Second
 	_STREAM_DEAD_AFTER     = 5 * time.Second
 	_KEEPALIVE_INTERVAL    = 10 * time.Second
-	_READ_TIMEOUT          = 5 * time.Second
 )
 
 func writeReqReadRes(conn *gortsplib.Conn, req *gortsplib.Request) (*gortsplib.Response, error) {
+	conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 	err := conn.WriteRequest(req)
 	if err != nil {
 		return nil, err

@@ -6,12 +6,18 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/yaml.v2"
 )
 
 var Version string = "v0.0.0"
+
+const (
+	_READ_TIMEOUT  = 5 * time.Second
+	_WRITE_TIMEOUT = 5 * time.Second
+)
 
 type trackFlow int
 

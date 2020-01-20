@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/aler9/gortsplib"
 )
@@ -103,7 +104,8 @@ func (c *client) run() {
 	}
 }
 
-func (c *client) writeRes(res *gortsplib.Response) {
+func (c *client) writeResDeadline(res *gortsplib.Response) {
+	c.conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 	c.conn.WriteResponse(res)
 }
 
@@ -111,7 +113,7 @@ func (c *client) writeResError(req *gortsplib.Request, err error) {
 	c.log("ERR: %s", err)
 
 	if cseq, ok := req.Headers["CSeq"]; ok {
-		c.conn.WriteResponse(&gortsplib.Response{
+		c.writeResDeadline(&gortsplib.Response{
 			StatusCode: 400,
 			Status:     "Bad Request",
 			Headers: map[string]string{
@@ -119,7 +121,7 @@ func (c *client) writeResError(req *gortsplib.Request, err error) {
 			},
 		})
 	} else {
-		c.conn.WriteResponse(&gortsplib.Response{
+		c.writeResDeadline(&gortsplib.Response{
 			StatusCode: 400,
 			Status:     "Bad Request",
 		})
@@ -162,7 +164,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 		// do not check state, since OPTIONS can be requested
 		// in any state
 
-		c.writeRes(&gortsplib.Response{
+		c.writeResDeadline(&gortsplib.Response{
 			StatusCode: 200,
 			Status:     "OK",
 			Headers: map[string]string{
@@ -204,7 +206,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 			return false
 		}
 
-		c.writeRes(&gortsplib.Response{
+		c.writeResDeadline(&gortsplib.Response{
 			StatusCode: 200,
 			Status:     "OK",
 			Headers: map[string]string{
@@ -247,7 +249,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 			}() {
 				if _, ok := c.p.protocols[_STREAM_PROTOCOL_UDP]; !ok {
 					c.log("ERR: udp streaming is disabled")
-					c.conn.WriteResponse(&gortsplib.Response{
+					c.writeResDeadline(&gortsplib.Response{
 						StatusCode: 461,
 						Status:     "Unsupported Transport",
 						Headers: map[string]string{
@@ -304,7 +306,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 					return false
 				}
 
-				c.writeRes(&gortsplib.Response{
+				c.writeResDeadline(&gortsplib.Response{
 					StatusCode: 200,
 					Status:     "OK",
 					Headers: map[string]string{
@@ -324,7 +326,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 			} else if _, ok := th["RTP/AVP/TCP"]; ok {
 				if _, ok := c.p.protocols[_STREAM_PROTOCOL_TCP]; !ok {
 					c.log("ERR: tcp streaming is disabled")
-					c.conn.WriteResponse(&gortsplib.Response{
+					c.writeResDeadline(&gortsplib.Response{
 						StatusCode: 461,
 						Status:     "Unsupported Transport",
 						Headers: map[string]string{
@@ -373,7 +375,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 
 				interleaved := fmt.Sprintf("%d-%d", ((len(c.streamTracks) - 1) * 2), ((len(c.streamTracks)-1)*2)+1)
 
-				c.writeRes(&gortsplib.Response{
+				c.writeResDeadline(&gortsplib.Response{
 					StatusCode: 200,
 					Status:     "OK",
 					Headers: map[string]string{
@@ -432,7 +434,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 		// first write response, then set state
 		// otherwise, in case of TCP connections, RTP packets could be written
 		// before the response
-		c.writeRes(&gortsplib.Response{
+		c.writeResDeadline(&gortsplib.Response{
 			StatusCode: 200,
 			Status:     "OK",
 			Headers: map[string]string{
@@ -486,7 +488,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 		c.state = _CLIENT_STATE_PRE_PLAY
 		c.p.mutex.Unlock()
 
-		c.writeRes(&gortsplib.Response{
+		c.writeResDeadline(&gortsplib.Response{
 			StatusCode: 200,
 			Status:     "OK",
 			Headers: map[string]string{
