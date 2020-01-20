@@ -16,9 +16,13 @@ todo
 
 ```
 server:
+  # supported protocols
   protocols: [ tcp, udp ]
+  # port of the RTSP TCP listener
   rtspPort: 8554
+  # port of the RTP UDP listener
   rtpPort: 8050
+  # port of the RTCP UDP listener
   rtcpPort: 8051
 
 streams:

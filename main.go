@@ -107,6 +107,18 @@ func newProgram(confPath string) (*program, error) {
 		return nil, err
 	}
 
+	if conf.Server.RtspPort == 0 {
+		return nil, fmt.Errorf("rtsp port not provided")
+	}
+
+	if conf.Server.RtpPort == 0 {
+		return nil, fmt.Errorf("rtp port not provided")
+	}
+
+	if conf.Server.RtcpPort == 0 {
+		return nil, fmt.Errorf("rtcp port not provided")
+	}
+
 	protocols := make(map[streamProtocol]struct{})
 	for _, proto := range conf.Server.Protocols {
 		switch proto {
@@ -121,7 +133,11 @@ func newProgram(confPath string) (*program, error) {
 		}
 	}
 	if len(protocols) == 0 {
-		return nil, fmt.Errorf("no protocols supplied")
+		return nil, fmt.Errorf("no protocols provided")
+	}
+
+	if len(conf.Streams) == 0 {
+		return nil, fmt.Errorf("no streams provided")
 	}
 
 	log.Printf("rtsp-simple-proxy %s", Version)

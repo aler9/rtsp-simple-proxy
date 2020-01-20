@@ -151,7 +151,7 @@ func (s *stream) run() {
 			time.Sleep(_RETRY_INTERVAL)
 		}
 
-		s.log("starting with protocol %s", s.proto)
+		s.log("initializing with protocol %s", s.proto)
 
 		func() {
 			nconn, err := net.DialTimeout("tcp", s.ur.Host, _DIAL_TIMEOUT)
