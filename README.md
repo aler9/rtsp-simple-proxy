@@ -18,17 +18,11 @@ todo
 server:
   protocols: [ tcp, udp ]
   rtspPort: 8554
-  rtpPort: 8000
-  rtcpPort: 8001
+  rtpPort: 8050
+  rtcpPort: 8051
 
 streams:
   test1:
-    url: rtsp://10.0.0.11:554/path
+    url: rtsp://localhost:8554/mystream
 
-  test2:
-    url: rtsp://10.0.0.12:554/path
-    useTcp: yes
-
-  test3:
-    url: rtsp://10.0.0.13:554/path
 ```

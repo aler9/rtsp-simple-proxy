@@ -61,19 +61,30 @@ type conf struct {
 }
 
 func loadConf(confPath string) (*conf, error) {
-	f, err := os.Open(confPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
+	if confPath == "stdin" {
+		var ret conf
+		err := yaml.NewDecoder(os.Stdin).Decode(&ret)
+		if err != nil {
+			return nil, err
+		}
 
-	var ret conf
-	err = yaml.NewDecoder(f).Decode(&ret)
-	if err != nil {
-		return nil, err
-	}
+		return &ret, nil
 
-	return &ret, nil
+	} else {
+		f, err := os.Open(confPath)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+
+		var ret conf
+		err = yaml.NewDecoder(f).Decode(&ret)
+		if err != nil {
+			return nil, err
+		}
+
+		return &ret, nil
+	}
 }
 
 type program struct {
@@ -185,7 +196,7 @@ func main() {
 		"RTSP proxy."
 
 	version := kingpin.Flag("version", "print rtsp-simple-proxy version").Bool()
-	confPath := kingpin.Arg("confpath", "path of config file").Required().String()
+	confPath := kingpin.Arg("confpath", "path of the config file. Use 'stdin' to read config from stdin").Required().String()
 
 	kingpin.Parse()
 
