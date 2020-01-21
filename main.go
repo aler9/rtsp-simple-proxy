@@ -189,11 +189,13 @@ func (p *program) forwardTrack(path string, id int, flow trackFlow, frame []byte
 		if c.path == path && c.state == _CLIENT_STATE_PLAY {
 			if c.streamProtocol == _STREAM_PROTOCOL_UDP {
 				if flow == _TRACK_FLOW_RTP {
+					p.rtpl.nconn.SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 					p.rtpl.nconn.WriteTo(frame, &net.UDPAddr{
 						IP:   c.ip,
 						Port: c.streamTracks[id].rtpPort,
 					})
 				} else {
+					p.rtcpl.nconn.SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 					p.rtcpl.nconn.WriteTo(frame, &net.UDPAddr{
 						IP:   c.ip,
 						Port: c.streamTracks[id].rtcpPort,
@@ -201,6 +203,7 @@ func (p *program) forwardTrack(path string, id int, flow trackFlow, frame []byte
 				}
 
 			} else {
+				c.conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 				c.conn.WriteInterleavedFrame(trackToInterleavedChannel(id, flow), frame)
 			}
 		}
