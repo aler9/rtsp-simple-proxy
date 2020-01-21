@@ -549,7 +549,7 @@ func (s *stream) runUdp(conn *gortsplib.Conn, cseq int) {
 func (s *stream) runTcp(conn *gortsplib.Conn, cseq int) {
 
 	for i := 0; i < len(s.sdpParsed.Medias); i++ {
-		interleaved := fmt.Sprintf("interleaved=%d-%d", (i / 2), (i/2)+1)
+		interleaved := fmt.Sprintf("interleaved=%d-%d", (i * 2), (i*2)+1)
 
 		res, err := writeReqReadRes(conn, &gortsplib.Request{
 			Method: "SETUP",
@@ -580,7 +580,7 @@ func (s *stream) runTcp(conn *gortsplib.Conn, cseq int) {
 
 		_, ok = th[interleaved]
 		if !ok {
-			s.log("ERR: transport header does not have %s", interleaved)
+			s.log("ERR: transport header does not have %s (%s)", interleaved, rawTh)
 			return
 		}
 	}
