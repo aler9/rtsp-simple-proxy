@@ -38,6 +38,8 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
     streams:
       test1:
         url: rtsp://localhost:8554/mystream
+        # whether to receive this stream in udp or tcp
+        useTcp: no
 
     ```
 
