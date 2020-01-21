@@ -25,6 +25,69 @@ const (
 	_KEEPALIVE_INTERVAL    = 10 * time.Second
 )
 
+func sdpParse(in []byte) (*sdp.Message, error) {
+	s, err := sdp.DecodeSession(in, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	m := &sdp.Message{}
+	d := sdp.NewDecoder(s)
+	err = d.Decode(m)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(m.Medias) == 0 {
+		return nil, fmt.Errorf("no tracks defined in SDP")
+	}
+
+	return m, nil
+}
+
+// remove everything from SDP except the bare minimum
+func sdpFilter(msgIn *sdp.Message, byteIn []byte) (*sdp.Message, []byte) {
+	msgOut := &sdp.Message{}
+
+	msgOut.Name = "Stream"
+	msgOut.Origin = sdp.Origin{
+		Username:    "-",
+		NetworkType: "IN",
+		AddressType: "IP4",
+		Address:     "127.0.0.1",
+	}
+
+	for i, m := range msgIn.Medias {
+		var attributes []sdp.Attribute
+		for _, attr := range m.Attributes {
+			if attr.Key == "rtpmap" || attr.Key == "fmtp" {
+				attributes = append(attributes, attr)
+			}
+		}
+		// control attribute is needed by gstreamer
+		attributes = append(attributes, sdp.Attribute{
+			Key:   "control",
+			Value: "streamid=" + strconv.FormatInt(int64(i), 10),
+		})
+
+		msgOut.Medias = append(msgOut.Medias, sdp.Media{
+			Bandwidths: m.Bandwidths,
+			Description: sdp.MediaDescription{
+				Type:     m.Description.Type,
+				Protocol: m.Description.Protocol,
+				Formats:  m.Description.Formats,
+			},
+			Attributes: attributes,
+		})
+	}
+
+	sdps := sdp.Session{}
+	sdps = msgOut.Append(sdps)
+	byteOut := sdps.AppendTo(nil)
+
+	return msgOut, byteOut
+}
+
 func writeReqReadRes(conn *gortsplib.Conn, req *gortsplib.Request) (*gortsplib.Response, error) {
 	conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 	err := conn.WriteRequest(req)
@@ -267,43 +330,13 @@ func (s *stream) run() {
 				return
 			}
 
-			sdpParsed, err := func() (*sdp.Message, error) {
-				s, err := sdp.DecodeSession(res.Content, nil)
-				if err != nil {
-					return nil, err
-				}
-
-				m := &sdp.Message{}
-				d := sdp.NewDecoder(s)
-				err = d.Decode(m)
-				if err != nil {
-					return nil, err
-				}
-
-				return m, nil
-			}()
+			sdpParsed, err := sdpParse(res.Content)
 			if err != nil {
-				s.log("ERR: invalid SDP")
+				s.log("ERR: invalid SDP: %s", err)
 				return
 			}
 
-			// remove any attribute that can mess with the proxy
-			removeAttr := func(in sdp.Attributes) sdp.Attributes {
-				for i := 0; i < len(in); i++ {
-					attr := in[i]
-					if attr.Key == "control" {
-						in = append(in[:i], in[i+1:]...)
-					}
-				}
-				return in
-			}
-			sdpParsed.Attributes = removeAttr(sdpParsed.Attributes)
-			for _, m := range sdpParsed.Medias {
-				m.Attributes = removeAttr(m.Attributes)
-			}
-			sdps := sdp.Session{}
-			sdps = sdpParsed.Append(sdps)
-			res.Content = sdps.AppendTo(nil)
+			sdpParsed, res.Content = sdpFilter(sdpParsed, res.Content)
 
 			func() {
 				s.p.mutex.Lock()

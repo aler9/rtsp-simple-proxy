@@ -37,20 +37,14 @@ export DOCKERFILE_RUN
 define CONFFILE
 server:
   protocols: [ tcp, udp ]
-  rtspPort: 8554
+  rtspPort: 8555
   rtpPort: 8050
   rtcpPort: 8051
 
 streams:
   test1:
-    url: rtsp://10.0.0.11:554/path
+    url: rtsp://localhost:8554/mystream
 
-  test2:
-    url: rtsp://10.0.0.12:554/path
-    useTcp: yes
-
-  test3:
-    url: rtsp://10.0.0.13:554/path
 endef
 export CONFFILE
 
@@ -58,7 +52,6 @@ run:
 	echo "$$DOCKERFILE_RUN" | docker build -q . -f - -t temp
 	echo "$$CONFFILE" | docker run --rm -i \
 	--network=host \
-	--name temp \
 	temp \
 	/out stdin
 
