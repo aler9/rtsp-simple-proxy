@@ -114,7 +114,7 @@ type auth map[string]string
 
 func newAuth(in string) (auth, error) {
 	if !strings.HasPrefix(in, "Digest ") {
-		return nil, fmt.Errorf("auth does not begin with Digest")
+		return nil, fmt.Errorf("auth does not begin with Digest (%s)", in)
 	}
 	in = in[len("Digest "):]
 
