@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"math/rand"
@@ -99,12 +97,6 @@ func writeReqReadRes(conn *gortsplib.Conn, req *gortsplib.Request) (*gortsplib.R
 	return conn.ReadResponse()
 }
 
-func md5Hex(in string) string {
-	h := md5.New()
-	h.Write([]byte(in))
-	return hex.EncodeToString(h.Sum(nil))
-}
-
 type streamUdpListenerPair struct {
 	rtpl  *streamUdpListener
 	rtcpl *streamUdpListener
@@ -125,31 +117,6 @@ func newAuth(in string) (auth, error) {
 	}
 
 	return a, nil
-}
-
-type authProvider struct {
-	user  string
-	pass  string
-	realm string
-	nonce string
-}
-
-func newAuthProvider(user string, pass string, realm string, nonce string) *authProvider {
-	return &authProvider{
-		user:  user,
-		pass:  pass,
-		realm: realm,
-		nonce: nonce,
-	}
-}
-
-func (ap *authProvider) generateHeader(method string, path string) string {
-	ha1 := md5Hex(ap.user + ":" + ap.realm + ":" + ap.pass)
-	ha2 := md5Hex(method + ":" + path)
-	response := md5Hex(ha1 + ":" + ap.nonce + ":" + ha2)
-
-	return fmt.Sprintf("Digest username=\"%s\", realm=\"%s\", nonce=\"%s\", uri=\"%s\", response=\"%s\"",
-		ap.user, ap.realm, ap.nonce, path, response)
 }
 
 type streamState int
@@ -229,16 +196,12 @@ func (s *stream) run() {
 			defer nconn.Close()
 
 			conn := gortsplib.NewConn(nconn)
-			cseq := 1
+			conn.EnableCseq()
 
 			res, err := writeReqReadRes(conn, &gortsplib.Request{
 				Method: "OPTIONS",
 				Url:    "rtsp://" + s.ur.Host + "/",
-				Headers: map[string]string{
-					"CSeq": strconv.FormatInt(int64(cseq), 10),
-				},
 			})
-			cseq += 1
 			if err != nil {
 				s.log("ERR: %s", err)
 				return
@@ -249,20 +212,18 @@ func (s *stream) run() {
 				return
 			}
 
+			if sx, ok := res.Headers["Session"]; ok {
+				conn.SetSession(sx)
+			}
+
 			res, err = writeReqReadRes(conn, &gortsplib.Request{
 				Method: "DESCRIBE",
 				Url:    "rtsp://" + s.ur.Host + s.ur.Path,
-				Headers: map[string]string{
-					"CSeq": strconv.FormatInt(int64(cseq), 10),
-				},
 			})
-			cseq += 1
 			if err != nil {
 				s.log("ERR: %s", err)
 				return
 			}
-
-			var authProv *authProvider
 
 			if res.StatusCode == 401 {
 				if s.ur.User == nil {
@@ -301,17 +262,12 @@ func (s *stream) run() {
 					return
 				}
 
-				authProv = newAuthProvider(user, pass, realm, nonce)
+				conn.SetCredentials(user, pass, realm, nonce)
 
 				res, err = writeReqReadRes(conn, &gortsplib.Request{
 					Method: "DESCRIBE",
 					Url:    "rtsp://" + s.ur.Host + s.ur.Path,
-					Headers: map[string]string{
-						"CSeq":          strconv.FormatInt(int64(cseq), 10),
-						"Authorization": authProv.generateHeader("DESCRIBE", "rtsp://"+s.ur.Host+s.ur.Path),
-					},
 				})
-				cseq += 1
 				if err != nil {
 					s.log("ERR: %s", err)
 					return
@@ -351,15 +307,15 @@ func (s *stream) run() {
 			}()
 
 			if s.proto == _STREAM_PROTOCOL_UDP {
-				s.runUdp(conn, cseq, authProv)
+				s.runUdp(conn)
 			} else {
-				s.runTcp(conn, cseq, authProv)
+				s.runTcp(conn)
 			}
 		}()
 	}
 }
 
-func (s *stream) runUdp(conn *gortsplib.Conn, cseq int, authProv *authProvider) {
+func (s *stream) runUdp(conn *gortsplib.Conn) {
 	publisherAddr, err := net.ResolveUDPAddr("udp", s.ur.Hostname()+":0")
 	if err != nil {
 		s.log("ERR: %s", err)
@@ -405,21 +361,13 @@ func (s *stream) runUdp(conn *gortsplib.Conn, cseq int, authProv *authProvider) 
 			return
 		}
 
-		ur := "rtsp://" + s.ur.Host + s.ur.Path + "/trackID=" + strconv.FormatInt(int64(i+1), 10)
-		headers := map[string]string{
-			"CSeq":      strconv.FormatInt(int64(cseq), 10),
-			"Transport": fmt.Sprintf("RTP/AVP/UDP;unicast;client_port=%d-%d", rtpPort, rtcpPort),
-		}
-		if authProv != nil {
-			headers["Authorization"] = authProv.generateHeader("SETUP", ur)
-		}
-
 		res, err := writeReqReadRes(conn, &gortsplib.Request{
-			Method:  "SETUP",
-			Url:     ur,
-			Headers: headers,
+			Method: "SETUP",
+			Url:    "rtsp://" + s.ur.Host + s.ur.Path + "/trackID=" + strconv.FormatInt(int64(i+1), 10),
+			Headers: map[string]string{
+				"Transport": fmt.Sprintf("RTP/AVP/UDP;unicast;client_port=%d-%d", rtpPort, rtcpPort),
+			},
 		})
-		cseq += 1
 		if err != nil {
 			s.log("ERR: %s", err)
 			rtpl.close()
@@ -432,6 +380,10 @@ func (s *stream) runUdp(conn *gortsplib.Conn, cseq int, authProv *authProvider) 
 			rtpl.close()
 			rtcpl.close()
 			return
+		}
+
+		if sx, ok := res.Headers["Session"]; ok {
+			conn.SetSession(sx)
 		}
 
 		rawTh, ok := res.Headers["Transport"]
@@ -469,20 +421,10 @@ func (s *stream) runUdp(conn *gortsplib.Conn, cseq int, authProv *authProvider) 
 		})
 	}
 
-	ur := "rtsp://" + s.ur.Host + s.ur.Path
-	headers := map[string]string{
-		"CSeq": strconv.FormatInt(int64(cseq), 10),
-	}
-	if authProv != nil {
-		headers["Authorization"] = authProv.generateHeader("SETUP", ur)
-	}
-
 	res, err := writeReqReadRes(conn, &gortsplib.Request{
-		Method:  "PLAY",
-		Url:     ur,
-		Headers: headers,
+		Method: "PLAY",
+		Url:    "rtsp://" + s.ur.Host + s.ur.Path,
 	})
-	cseq += 1
 	if err != nil {
 		s.log("ERR: %s", err)
 		return
@@ -528,11 +470,7 @@ func (s *stream) runUdp(conn *gortsplib.Conn, cseq int, authProv *authProvider) 
 			_, err = writeReqReadRes(conn, &gortsplib.Request{
 				Method: "OPTIONS",
 				Url:    "rtsp://" + s.ur.Host + "/",
-				Headers: map[string]string{
-					"CSeq": strconv.FormatInt(int64(cseq), 10),
-				},
 			})
-			cseq += 1
 			if err != nil {
 				s.log("ERR: %s", err)
 				return
@@ -562,29 +500,25 @@ func (s *stream) runUdp(conn *gortsplib.Conn, cseq int, authProv *authProvider) 
 	}
 }
 
-func (s *stream) runTcp(conn *gortsplib.Conn, cseq int, authProv *authProvider) {
+func (s *stream) runTcp(conn *gortsplib.Conn) {
 
 	for i := 0; i < len(s.sdpParsed.Medias); i++ {
 		interleaved := fmt.Sprintf("interleaved=%d-%d", (i * 2), (i*2)+1)
 
-		ur := "rtsp://" + s.ur.Host + s.ur.Path + "/trackID=" + strconv.FormatInt(int64(i+1), 10)
-		headers := map[string]string{
-			"CSeq":      strconv.FormatInt(int64(cseq), 10),
-			"Transport": fmt.Sprintf("RTP/AVP/TCP;unicast;%s", interleaved),
-		}
-		if authProv != nil {
-			headers["Authorization"] = authProv.generateHeader("SETUP", ur)
-		}
-
 		res, err := writeReqReadRes(conn, &gortsplib.Request{
-			Method:  "SETUP",
-			Url:     ur,
-			Headers: headers,
+			Method: "SETUP",
+			Url:    "rtsp://" + s.ur.Host + s.ur.Path + "/trackID=" + strconv.FormatInt(int64(i+1), 10),
+			Headers: map[string]string{
+				"Transport": fmt.Sprintf("RTP/AVP/TCP;unicast;%s", interleaved),
+			},
 		})
-		cseq += 1
 		if err != nil {
 			s.log("ERR: %s", err)
 			return
+		}
+
+		if sx, ok := res.Headers["Session"]; ok {
+			conn.SetSession(sx)
 		}
 
 		if res.StatusCode != 200 {
@@ -607,20 +541,10 @@ func (s *stream) runTcp(conn *gortsplib.Conn, cseq int, authProv *authProvider) 
 		}
 	}
 
-	ur := "rtsp://" + s.ur.Host + s.ur.Path
-	headers := map[string]string{
-		"CSeq": strconv.FormatInt(int64(cseq), 10),
-	}
-	if authProv != nil {
-		headers["Authorization"] = authProv.generateHeader("PLAY", ur)
-	}
-
 	res, err := writeReqReadRes(conn, &gortsplib.Request{
-		Method:  "PLAY",
-		Url:     ur,
-		Headers: headers,
+		Method: "PLAY",
+		Url:    "rtsp://" + s.ur.Host + s.ur.Path,
 	})
-	cseq += 1
 	if err != nil {
 		s.log("ERR: %s", err)
 		return
