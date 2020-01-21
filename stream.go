@@ -180,6 +180,10 @@ func newStream(p *program, path string, conf streamConf) (*stream, error) {
 		return nil, fmt.Errorf("unsupported scheme: %s", ur.Scheme)
 	}
 
+	if ur.Port() == "" {
+		ur.Host = ur.Hostname() + ":554"
+	}
+
 	proto := _STREAM_PROTOCOL_UDP
 	if conf.UseTcp {
 		proto = _STREAM_PROTOCOL_TCP
