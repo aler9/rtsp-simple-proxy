@@ -218,7 +218,12 @@ func (s *stream) run() {
 
 			res, err = writeReqReadRes(conn, &gortsplib.Request{
 				Method: "DESCRIBE",
-				Url:    "rtsp://" + s.ur.Host + s.ur.Path,
+				Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
+					if s.ur.RawQuery != "" {
+						return "?" + s.ur.RawQuery
+					}
+					return ""
+				}(),
 			})
 			if err != nil {
 				s.log("ERR: %s", err)
@@ -266,7 +271,12 @@ func (s *stream) run() {
 
 				res, err = writeReqReadRes(conn, &gortsplib.Request{
 					Method: "DESCRIBE",
-					Url:    "rtsp://" + s.ur.Host + s.ur.Path,
+					Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
+						if s.ur.RawQuery != "" {
+							return "?" + s.ur.RawQuery
+						}
+						return ""
+					}(),
 				})
 				if err != nil {
 					s.log("ERR: %s", err)
@@ -363,7 +373,19 @@ func (s *stream) runUdp(conn *gortsplib.Conn) {
 
 		res, err := writeReqReadRes(conn, &gortsplib.Request{
 			Method: "SETUP",
-			Url:    "rtsp://" + s.ur.Host + s.ur.Path + "/trackID=" + strconv.FormatInt(int64(i+1), 10),
+			Url: "rtsp://" + s.ur.Host + func() string {
+				ret := s.ur.Path
+				if len(ret) == 0 || ret[len(ret)-1] != '/' {
+					ret += "/"
+				}
+				ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+				return ret
+			}() + func() string {
+				if s.ur.RawQuery != "" {
+					return "?" + s.ur.RawQuery
+				}
+				return ""
+			}(),
 			Headers: map[string]string{
 				"Transport": fmt.Sprintf("RTP/AVP/UDP;unicast;client_port=%d-%d", rtpPort, rtcpPort),
 			},
@@ -423,7 +445,12 @@ func (s *stream) runUdp(conn *gortsplib.Conn) {
 
 	res, err := writeReqReadRes(conn, &gortsplib.Request{
 		Method: "PLAY",
-		Url:    "rtsp://" + s.ur.Host + s.ur.Path,
+		Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
+			if s.ur.RawQuery != "" {
+				return "?" + s.ur.RawQuery
+			}
+			return ""
+		}(),
 	})
 	if err != nil {
 		s.log("ERR: %s", err)
@@ -507,7 +534,19 @@ func (s *stream) runTcp(conn *gortsplib.Conn) {
 
 		res, err := writeReqReadRes(conn, &gortsplib.Request{
 			Method: "SETUP",
-			Url:    "rtsp://" + s.ur.Host + s.ur.Path + "/trackID=" + strconv.FormatInt(int64(i+1), 10),
+			Url: "rtsp://" + s.ur.Host + func() string {
+				ret := s.ur.Path
+				if len(ret) == 0 || ret[len(ret)-1] != '/' {
+					ret += "/"
+				}
+				ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+				return ret
+			}() + func() string {
+				if s.ur.RawQuery != "" {
+					return "?" + s.ur.RawQuery
+				}
+				return ""
+			}(),
 			Headers: map[string]string{
 				"Transport": fmt.Sprintf("RTP/AVP/TCP;unicast;%s", interleaved),
 			},
@@ -543,7 +582,12 @@ func (s *stream) runTcp(conn *gortsplib.Conn) {
 
 	res, err := writeReqReadRes(conn, &gortsplib.Request{
 		Method: "PLAY",
-		Url:    "rtsp://" + s.ur.Host + s.ur.Path,
+		Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
+			if s.ur.RawQuery != "" {
+				return "?" + s.ur.RawQuery
+			}
+			return ""
+		}(),
 	})
 	if err != nil {
 		s.log("ERR: %s", err)
