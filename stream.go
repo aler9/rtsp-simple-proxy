@@ -19,7 +19,7 @@ const (
 	_RETRY_INTERVAL        = 5 * time.Second
 	_CHECK_STREAM_INTERVAL = 6 * time.Second
 	_STREAM_DEAD_AFTER     = 5 * time.Second
-	_KEEPALIVE_INTERVAL    = 10 * time.Second
+	_KEEPALIVE_INTERVAL    = 20 * time.Second
 )
 
 func sdpParse(in []byte) (*sdp.Message, error) {
