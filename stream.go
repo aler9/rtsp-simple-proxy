@@ -360,6 +360,7 @@ func (s *stream) runUdp(conn *gortsplib.Conn) {
 
 				rtcpl, err = newStreamUdpListener(s.p, rtcpPort)
 				if err != nil {
+					rtpl.close()
 					continue
 				}
 
@@ -387,7 +388,11 @@ func (s *stream) runUdp(conn *gortsplib.Conn) {
 				return ""
 			}(),
 			Headers: map[string]string{
-				"Transport": fmt.Sprintf("RTP/AVP/UDP;unicast;client_port=%d-%d", rtpPort, rtcpPort),
+				"Transport": strings.Join([]string{
+					"RTP/AVP/UDP",
+					"unicast",
+					fmt.Sprintf("client_port=%d-%d", rtpPort, rtcpPort),
+				}, ";"),
 			},
 		})
 		if err != nil {
@@ -548,7 +553,11 @@ func (s *stream) runTcp(conn *gortsplib.Conn) {
 				return ""
 			}(),
 			Headers: map[string]string{
-				"Transport": fmt.Sprintf("RTP/AVP/TCP;unicast;%s", interleaved),
+				"Transport": strings.Join([]string{
+					"RTP/AVP/TCP",
+					"unicast",
+					interleaved,
+				}, ";"),
 			},
 		})
 		if err != nil {
