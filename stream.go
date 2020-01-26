@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -86,7 +85,7 @@ func sdpFilter(msgIn *sdp.Message, byteIn []byte) (*sdp.Message, []byte) {
 	return msgOut, byteOut
 }
 
-func writeReqReadRes(conn *gortsplib.Conn, req *gortsplib.Request) (*gortsplib.Response, error) {
+func writeReqReadRes(conn *gortsplib.ConnClient, req *gortsplib.Request) (*gortsplib.Response, error) {
 	conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 	err := conn.WriteRequest(req)
 	if err != nil {
@@ -100,23 +99,6 @@ func writeReqReadRes(conn *gortsplib.Conn, req *gortsplib.Request) (*gortsplib.R
 type streamUdpListenerPair struct {
 	rtpl  *streamUdpListener
 	rtcpl *streamUdpListener
-}
-
-type auth map[string]string
-
-func newAuth(in string) (auth, error) {
-	if !strings.HasPrefix(in, "Digest ") {
-		return nil, fmt.Errorf("auth does not begin with Digest (%s)", in)
-	}
-	in = in[len("Digest "):]
-
-	a := make(auth)
-	matches := regexp.MustCompile("([a-z]+)=\"(.+?)\",?").FindAllStringSubmatch(in, -1)
-	for _, match := range matches {
-		a[match[1]] = match[2]
-	}
-
-	return a, nil
 }
 
 type streamState int
@@ -195,7 +177,7 @@ func (s *stream) run() {
 			}
 			defer nconn.Close()
 
-			conn := gortsplib.NewConn(nconn)
+			conn := gortsplib.NewConnClient(nconn)
 			conn.EnableCseq()
 
 			res, err := writeReqReadRes(conn, &gortsplib.Request{
@@ -212,8 +194,8 @@ func (s *stream) run() {
 				return
 			}
 
-			if sx, ok := res.Headers["Session"]; ok {
-				conn.SetSession(sx)
+			if sx, ok := res.Header["Session"]; ok && len(sx) == 1 {
+				conn.SetSession(sx[0])
 			}
 
 			res, err = writeReqReadRes(conn, &gortsplib.Request{
@@ -243,25 +225,36 @@ func (s *stream) run() {
 					return
 				}
 
-				rawAuth, ok := res.Headers["WWW-Authenticate"]
-				if !ok {
-					s.log("ERR: 401 but WWW-Authenticate not provided")
+				rawAuthDigest := func() string {
+					vals, ok := res.Header["WWW-Authenticate"]
+					if !ok {
+						return ""
+					}
+					for _, v := range vals {
+						if strings.HasPrefix(v, "Digest ") {
+							return v
+						}
+					}
+					return ""
+				}()
+				if rawAuthDigest == "" {
+					s.log("ERR: 401 but WWW-Authenticate/digest not provided")
 					return
 				}
 
-				auth, err := newAuth(rawAuth)
+				auth, err := gortsplib.ReadHeaderAuth(rawAuthDigest)
 				if err != nil {
 					s.log("ERR: %s", err)
 					return
 				}
 
-				nonce, ok := auth["nonce"]
+				nonce, ok := auth.Values["nonce"]
 				if !ok {
 					s.log("ERR: 401 but nonce not provided")
 					return
 				}
 
-				realm, ok := auth["realm"]
+				realm, ok := auth.Values["realm"]
 				if !ok {
 					s.log("ERR: 401 but realm not provided")
 					return
@@ -289,13 +282,13 @@ func (s *stream) run() {
 				return
 			}
 
-			contentType, ok := res.Headers["Content-Type"]
-			if !ok {
+			contentType, ok := res.Header["Content-Type"]
+			if !ok || len(contentType) != 1 {
 				s.log("ERR: Content-Type not provided")
 				return
 			}
 
-			if contentType != "application/sdp" {
+			if contentType[0] != "application/sdp" {
 				s.log("ERR: wrong Content-Type, expected application/sdp")
 				return
 			}
@@ -325,7 +318,7 @@ func (s *stream) run() {
 	}
 }
 
-func (s *stream) runUdp(conn *gortsplib.Conn) {
+func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 	publisherAddr, err := net.ResolveUDPAddr("udp", s.ur.Hostname()+":0")
 	if err != nil {
 		s.log("ERR: %s", err)
@@ -387,12 +380,12 @@ func (s *stream) runUdp(conn *gortsplib.Conn) {
 				}
 				return ""
 			}(),
-			Headers: map[string]string{
-				"Transport": strings.Join([]string{
+			Header: gortsplib.Header{
+				"Transport": []string{strings.Join([]string{
 					"RTP/AVP/UDP",
 					"unicast",
 					fmt.Sprintf("client_port=%d-%d", rtpPort, rtcpPort),
-				}, ";"),
+				}, ";")},
 			},
 		})
 		if err != nil {
@@ -409,19 +402,19 @@ func (s *stream) runUdp(conn *gortsplib.Conn) {
 			return
 		}
 
-		if sx, ok := res.Headers["Session"]; ok {
-			conn.SetSession(sx)
+		if sx, ok := res.Header["Session"]; ok && len(sx) == 1 {
+			conn.SetSession(sx[0])
 		}
 
-		rawTh, ok := res.Headers["Transport"]
-		if !ok {
+		tsRaw, ok := res.Header["Transport"]
+		if !ok || len(tsRaw) != 1 {
 			s.log("ERR: transport header not provided")
 			rtpl.close()
 			rtcpl.close()
 			return
 		}
 
-		th := gortsplib.NewTransportHeader(rawTh)
+		th := gortsplib.ReadHeaderTransport(tsRaw[0])
 		rtpServerPort, rtcpServerPort := th.GetPorts("server_port")
 		if rtpServerPort == 0 {
 			s.log("ERR: server ports not provided")
@@ -532,7 +525,7 @@ func (s *stream) runUdp(conn *gortsplib.Conn) {
 	}
 }
 
-func (s *stream) runTcp(conn *gortsplib.Conn) {
+func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 
 	for i := 0; i < len(s.sdpParsed.Medias); i++ {
 		interleaved := fmt.Sprintf("interleaved=%d-%d", (i * 2), (i*2)+1)
@@ -552,12 +545,12 @@ func (s *stream) runTcp(conn *gortsplib.Conn) {
 				}
 				return ""
 			}(),
-			Headers: map[string]string{
-				"Transport": strings.Join([]string{
+			Header: gortsplib.Header{
+				"Transport": []string{strings.Join([]string{
 					"RTP/AVP/TCP",
 					"unicast",
 					interleaved,
-				}, ";"),
+				}, ";")},
 			},
 		})
 		if err != nil {
@@ -565,8 +558,8 @@ func (s *stream) runTcp(conn *gortsplib.Conn) {
 			return
 		}
 
-		if sx, ok := res.Headers["Session"]; ok {
-			conn.SetSession(sx)
+		if sx, ok := res.Header["Session"]; ok && len(sx) == 1 {
+			conn.SetSession(sx[0])
 		}
 
 		if res.StatusCode != 200 {
@@ -574,17 +567,17 @@ func (s *stream) runTcp(conn *gortsplib.Conn) {
 			return
 		}
 
-		rawTh, ok := res.Headers["Transport"]
-		if !ok {
+		tsRaw, ok := res.Header["Transport"]
+		if !ok || len(tsRaw) != 1 {
 			s.log("ERR: transport header not provided")
 			return
 		}
 
-		th := gortsplib.NewTransportHeader(rawTh)
+		th := gortsplib.ReadHeaderTransport(tsRaw[0])
 
 		_, ok = th[interleaved]
 		if !ok {
-			s.log("ERR: transport header does not have %s (%s)", interleaved, rawTh)
+			s.log("ERR: transport header does not have %s (%s)", interleaved, tsRaw[0])
 			return
 		}
 	}
@@ -629,22 +622,21 @@ func (s *stream) runTcp(conn *gortsplib.Conn) {
 
 	s.log("ready")
 
-	buf := make([]byte, 2048)
 	for {
 		conn.NetConn().SetReadDeadline(time.Now().Add(_READ_TIMEOUT))
-		channel, n, err := conn.ReadInterleavedFrame(buf)
+		frame, err := conn.ReadInterleavedFrame()
 		if err != nil {
 			s.log("ERR: %s", err)
 			return
 		}
 
-		trackId, trackFlow := interleavedChannelToTrack(channel)
+		trackId, trackFlow := interleavedChannelToTrack(frame.Channel)
 
 		func() {
 			s.p.mutex.RLock()
 			defer s.p.mutex.RUnlock()
 
-			s.p.forwardTrack(s.path, trackId, trackFlow, buf[:n])
+			s.p.forwardTrack(s.path, trackId, trackFlow, frame.Content)
 		}()
 	}
 }

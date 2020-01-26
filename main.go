@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aler9/gortsplib"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/yaml.v2"
 )
@@ -204,7 +205,10 @@ func (p *program) forwardTrack(path string, id int, flow trackFlow, frame []byte
 
 			} else {
 				c.conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
-				c.conn.WriteInterleavedFrame(trackToInterleavedChannel(id, flow), frame)
+				c.conn.WriteInterleavedFrame(&gortsplib.InterleavedFrame{
+					Channel: trackToInterleavedChannel(id, flow),
+					Content: frame,
+				})
 			}
 		}
 	}
