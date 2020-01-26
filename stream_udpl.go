@@ -61,9 +61,11 @@ func (l *streamUdpListener) start() {
 func (l *streamUdpListener) run() {
 	defer func() { l.chanDone <- struct{}{} }()
 
-	buf := make([]byte, 2048) // UDP MTU is 1400
-
 	for {
+		// create a buffer for each read.
+		// this is necessary since the buffer is propagated with channels
+		// so it must be unique.
+		buf := make([]byte, 2048) // UDP MTU is 1400
 		n, addr, err := l.nconn.ReadFromUDP(buf)
 		if err != nil {
 			return
