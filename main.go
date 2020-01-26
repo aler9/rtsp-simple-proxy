@@ -120,6 +120,14 @@ func newProgram(confPath string) (*program, error) {
 		return nil, fmt.Errorf("rtcp port not provided")
 	}
 
+	if (conf.Server.RtpPort % 2) != 0 {
+		return nil, fmt.Errorf("rtp port must be even")
+	}
+
+	if conf.Server.RtcpPort != (conf.Server.RtpPort + 1) {
+		return nil, fmt.Errorf("rtcp port must be rtp port plus 1")
+	}
+
 	protocols := make(map[streamProtocol]struct{})
 	for _, proto := range conf.Server.Protocols {
 		switch proto {
