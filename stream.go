@@ -225,42 +225,11 @@ func (s *stream) run() {
 					return
 				}
 
-				rawAuthDigest := func() string {
-					vals, ok := res.Header["WWW-Authenticate"]
-					if !ok {
-						return ""
-					}
-					for _, v := range vals {
-						if strings.HasPrefix(v, "Digest ") {
-							return v
-						}
-					}
-					return ""
-				}()
-				if rawAuthDigest == "" {
-					s.log("ERR: 401 but WWW-Authenticate/digest not provided")
-					return
-				}
-
-				auth, err := gortsplib.ReadHeaderAuth(rawAuthDigest)
+				err = conn.SetCredentials(res.Header["WWW-Authenticate"], user, pass)
 				if err != nil {
-					s.log("ERR: %s", err)
+					s.log("ERR: unable to set credentials: %s", err)
 					return
 				}
-
-				nonce, ok := auth.Values["nonce"]
-				if !ok {
-					s.log("ERR: 401 but nonce not provided")
-					return
-				}
-
-				realm, ok := auth.Values["realm"]
-				if !ok {
-					s.log("ERR: 401 but realm not provided")
-					return
-				}
-
-				conn.SetCredentials(user, pass, realm, nonce)
 
 				res, err = writeReqReadRes(conn, &gortsplib.Request{
 					Method: "DESCRIBE",
