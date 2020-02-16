@@ -99,7 +99,23 @@ type program struct {
 	streams   map[string]*stream
 }
 
-func newProgram(confPath string) (*program, error) {
+func newProgram() (*program, error) {
+	kingpin.CommandLine.Help = "rtsp-simple-proxy " + Version + "\n\n" +
+		"RTSP proxy."
+
+	argVersion := kingpin.Flag("version", "print rtsp-simple-proxy version").Bool()
+	argConfPath := kingpin.Arg("confpath", "path of the config file. Use 'stdin' to read config from stdin").Required().String()
+
+	kingpin.Parse()
+
+	version := *argVersion
+	confPath := *argConfPath
+
+	if version == true {
+		fmt.Println("rtsp-simple-proxy " + Version)
+		os.Exit(0)
+	}
+
 	conf, err := loadConf(confPath)
 	if err != nil {
 		return nil, err
@@ -226,20 +242,7 @@ func (p *program) forwardTrack(path string, id int, flow trackFlow, frame []byte
 }
 
 func main() {
-	kingpin.CommandLine.Help = "rtsp-simple-proxy " + Version + "\n\n" +
-		"RTSP proxy."
-
-	version := kingpin.Flag("version", "print rtsp-simple-proxy version").Bool()
-	confPath := kingpin.Arg("confpath", "path of the config file. Use 'stdin' to read config from stdin").Required().String()
-
-	kingpin.Parse()
-
-	if *version == true {
-		fmt.Println("rtsp-simple-proxy " + Version)
-		os.Exit(0)
-	}
-
-	p, err := newProgram(*confPath)
+	p, err := newProgram()
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
