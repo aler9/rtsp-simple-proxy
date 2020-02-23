@@ -36,7 +36,9 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
       rtcpPort: 8051
 
     streams:
-      test1:
+      # name of the stream
+      mypath:
+        # url of the source stream
         url: rtsp://localhost:8554/mystream
         # whether to receive this stream in udp or tcp
         useTcp: no
@@ -50,7 +52,7 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
 
 3. Open any stream you have defined in the configuration file by using the stream name as path, for instance with VLC:
    ```
-   vlc rtsp://localhost:8554/test1
+   vlc rtsp://localhost:8554/mypath
    ```
 
 #### Full command-line usage
