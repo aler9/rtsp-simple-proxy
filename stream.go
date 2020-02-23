@@ -178,7 +178,6 @@ func (s *stream) run() {
 			defer nconn.Close()
 
 			conn := gortsplib.NewConnClient(nconn)
-			conn.EnableCseq()
 
 			res, err := writeReqReadRes(conn, &gortsplib.Request{
 				Method: "OPTIONS",
