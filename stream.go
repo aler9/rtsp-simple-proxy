@@ -347,14 +347,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 					ret += "/"
 				}
 
-				control := func() string {
-					for _, attr := range media.Attributes {
-						if attr.Key == "control" {
-							return attr.Value
-						}
-					}
-					return ""
-				}()
+				control := media.Attributes.Value("control")
 				if control != "" {
 					ret += control
 				} else {
@@ -526,14 +519,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 					ret += "/"
 				}
 
-				control := func() string {
-					for _, attr := range media.Attributes {
-						if attr.Key == "control" {
-							return attr.Value
-						}
-					}
-					return ""
-				}()
+				control := media.Attributes.Value("control")
 				if control != "" {
 					ret += control
 				} else {
