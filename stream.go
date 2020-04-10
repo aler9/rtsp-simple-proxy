@@ -196,8 +196,13 @@ func (s *stream) run() {
 				return
 			}
 
-			if sx, ok := res.Header["Session"]; ok && len(sx) == 1 {
-				conn.SetSession(sx[0])
+			if sxRaw, ok := res.Header["Session"]; ok && len(sxRaw) == 1 {
+				sx, err := gortsplib.ReadHeaderSession(sxRaw[0])
+				if err != nil {
+					s.log("ERR: unable to parse session: %s", err)
+					return
+				}
+				conn.SetSession(sx.Session)
 			}
 
 			res, err = writeReqReadRes(conn, &gortsplib.Request{
@@ -383,8 +388,13 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 			return
 		}
 
-		if sx, ok := res.Header["Session"]; ok && len(sx) == 1 {
-			conn.SetSession(sx[0])
+		if sxRaw, ok := res.Header["Session"]; ok && len(sxRaw) == 1 {
+			sx, err := gortsplib.ReadHeaderSession(sxRaw[0])
+			if err != nil {
+				s.log("ERR: unable to parse session: %s", err)
+				return
+			}
+			conn.SetSession(sx.Session)
 		}
 
 		tsRaw, ok := res.Header["Transport"]
@@ -546,8 +556,13 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 			return
 		}
 
-		if sx, ok := res.Header["Session"]; ok && len(sx) == 1 {
-			conn.SetSession(sx[0])
+		if sxRaw, ok := res.Header["Session"]; ok && len(sxRaw) == 1 {
+			sx, err := gortsplib.ReadHeaderSession(sxRaw[0])
+			if err != nil {
+				s.log("ERR: unable to parse session: %s", err)
+				return
+			}
+			conn.SetSession(sx.Session)
 		}
 
 		if res.StatusCode != 200 {
