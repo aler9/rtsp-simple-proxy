@@ -61,10 +61,12 @@ func sdpFilter(msgIn *sdp.Message, byteIn []byte) (*sdp.Message, []byte) {
 				attributes = append(attributes, attr)
 			}
 		}
-		// control attribute is needed by gstreamer
+
+		// control attribute is mandatory, and is the path that is appended
+		// to the stream path in SETUP
 		attributes = append(attributes, sdp.Attribute{
 			Key:   "control",
-			Value: "streamid=" + strconv.FormatInt(int64(i), 10),
+			Value: "trackID=" + strconv.FormatInt(int64(i), 10),
 		})
 
 		msgOut.Medias = append(msgOut.Medias, sdp.Media{
@@ -109,14 +111,15 @@ const (
 )
 
 type stream struct {
-	p         *program
-	state     streamState
-	path      string
-	conf      streamConf
-	ur        *url.URL
-	proto     streamProtocol
-	sdpText   []byte
-	sdpParsed *sdp.Message
+	p               *program
+	state           streamState
+	path            string
+	conf            streamConf
+	ur              *url.URL
+	proto           streamProtocol
+	clientSdpParsed *sdp.Message
+	serverSdpText   []byte
+	serverSdpParsed *sdp.Message
 }
 
 func newStream(p *program, path string, conf streamConf) (*stream, error) {
@@ -261,20 +264,22 @@ func (s *stream) run() {
 				return
 			}
 
-			sdpParsed, err := sdpParse(res.Content)
+			clientSdpParsed, err := sdpParse(res.Content)
 			if err != nil {
 				s.log("ERR: invalid SDP: %s", err)
 				return
 			}
 
-			sdpParsed, res.Content = sdpFilter(sdpParsed, res.Content)
+			// create a filtered SDP that is used by the server (not by the client)
+			serverSdpParsed, serverSdpText := sdpFilter(clientSdpParsed, res.Content)
 
 			func() {
 				s.p.mutex.Lock()
 				defer s.p.mutex.Unlock()
 
-				s.sdpText = res.Content
-				s.sdpParsed = sdpParsed
+				s.clientSdpParsed = clientSdpParsed
+				s.serverSdpText = serverSdpText
+				s.serverSdpParsed = serverSdpParsed
 			}()
 
 			if s.proto == _STREAM_PROTOCOL_UDP {
@@ -302,7 +307,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 		}
 	}()
 
-	for i := 0; i < len(s.sdpParsed.Medias); i++ {
+	for i, media := range s.clientSdpParsed.Medias {
 		var rtpPort int
 		var rtcpPort int
 		var rtpl *streamUdpListener
@@ -337,10 +342,25 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 			Method: "SETUP",
 			Url: "rtsp://" + s.ur.Host + func() string {
 				ret := s.ur.Path
+
 				if len(ret) == 0 || ret[len(ret)-1] != '/' {
 					ret += "/"
 				}
-				ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+
+				control := func() string {
+					for _, attr := range media.Attributes {
+						if attr.Key == "control" {
+							return attr.Value
+						}
+					}
+					return ""
+				}()
+				if control != "" {
+					ret += control
+				} else {
+					ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+				}
+
 				return ret
 			}() + func() string {
 				if s.ur.RawQuery != "" {
@@ -494,18 +514,32 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 }
 
 func (s *stream) runTcp(conn *gortsplib.ConnClient) {
-
-	for i := 0; i < len(s.sdpParsed.Medias); i++ {
+	for i, media := range s.clientSdpParsed.Medias {
 		interleaved := fmt.Sprintf("interleaved=%d-%d", (i * 2), (i*2)+1)
 
 		res, err := writeReqReadRes(conn, &gortsplib.Request{
 			Method: "SETUP",
 			Url: "rtsp://" + s.ur.Host + func() string {
 				ret := s.ur.Path
+
 				if len(ret) == 0 || ret[len(ret)-1] != '/' {
 					ret += "/"
 				}
-				ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+
+				control := func() string {
+					for _, attr := range media.Attributes {
+						if attr.Key == "control" {
+							return attr.Value
+						}
+					}
+					return ""
+				}()
+				if control != "" {
+					ret += control
+				} else {
+					ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+				}
+
 				return ret
 			}() + func() string {
 				if s.ur.RawQuery != "" {

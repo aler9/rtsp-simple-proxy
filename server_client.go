@@ -202,7 +202,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 				return nil, fmt.Errorf("stream '%s' is not ready yet", path)
 			}
 
-			return str.sdpText, nil
+			return str.serverSdpText, nil
 		}()
 		if err != nil {
 			c.writeResError(req, err)
@@ -290,7 +290,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 						return fmt.Errorf("client want to send tracks with different protocols")
 					}
 
-					if len(c.streamTracks) >= len(str.sdpParsed.Medias) {
+					if len(c.streamTracks) >= len(str.serverSdpParsed.Medias) {
 						return fmt.Errorf("all the tracks have already been setup")
 					}
 
@@ -357,7 +357,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 						return fmt.Errorf("client want to send tracks with different protocols")
 					}
 
-					if len(c.streamTracks) >= len(str.sdpParsed.Medias) {
+					if len(c.streamTracks) >= len(str.serverSdpParsed.Medias) {
 						return fmt.Errorf("all the tracks have already been setup")
 					}
 
@@ -423,7 +423,7 @@ func (c *client) handleRequest(req *gortsplib.Request) bool {
 				return fmt.Errorf("no one is streaming on path '%s'", c.path)
 			}
 
-			if len(c.streamTracks) != len(str.sdpParsed.Medias) {
+			if len(c.streamTracks) != len(str.serverSdpParsed.Medias) {
 				return fmt.Errorf("not all tracks have been setup")
 			}
 
