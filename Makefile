@@ -91,11 +91,16 @@ release-nodocker:
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) -o /tmp/rtsp-simple-proxy
 	tar -C /tmp -czf $(PWD)/release/rtsp-simple-proxy_$(VERSION)_linux_arm64.tar.gz --owner=0 --group=0 rtsp-simple-proxy
 
+define DOCKERFILE_TRAVIS
+FROM ruby:alpine
+RUN apk add --no-cache build-base git
+RUN gem install travis
+endef
+export DOCKERFILE_TRAVIS
+
 travis-setup:
-	echo "FROM ruby:alpine \n\
-	RUN apk add --no-cache build-base git \n\
-	RUN gem install travis" | docker build - -t temp \
-	&& docker run --rm -it \
+	echo "$$DOCKERFILE_TRAVIS" | docker build - -t temp
+	docker run --rm -it \
 	-v $(PWD):/s \
 	temp \
 	sh -c "cd /s \
