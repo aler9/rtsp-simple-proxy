@@ -95,7 +95,7 @@ type program struct {
 	rtspl     *serverTcpListener
 	rtpl      *serverUdpListener
 	rtcpl     *serverUdpListener
-	clients   map[*client]struct{}
+	clients   map[*serverClient]struct{}
 	streams   map[string]*stream
 }
 
@@ -170,7 +170,7 @@ func newProgram() (*program, error) {
 	p := &program{
 		conf:      *conf,
 		protocols: protocols,
-		clients:   make(map[*client]struct{}),
+		clients:   make(map[*serverClient]struct{}),
 		streams:   make(map[string]*stream),
 	}
 

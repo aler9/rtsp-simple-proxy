@@ -34,7 +34,7 @@ const (
 	_CLIENT_STATE_PLAY
 )
 
-type client struct {
+type serverClient struct {
 	p              *program
 	conn           *gortsplib.ConnServer
 	state          clientState
@@ -45,8 +45,8 @@ type client struct {
 	chanWrite      chan *gortsplib.InterleavedFrame
 }
 
-func newClient(p *program, nconn net.Conn) *client {
-	c := &client{
+func newServerClient(p *program, nconn net.Conn) *serverClient {
+	c := &serverClient{
 		p:         p,
 		conn:      gortsplib.NewConnServer(nconn),
 		state:     _CLIENT_STATE_STARTING,
@@ -60,7 +60,7 @@ func newClient(p *program, nconn net.Conn) *client {
 	return c
 }
 
-func (c *client) close() error {
+func (c *serverClient) close() error {
 	// already deleted
 	if _, ok := c.p.clients[c]; !ok {
 		return nil
@@ -73,12 +73,12 @@ func (c *client) close() error {
 	return nil
 }
 
-func (c *client) log(format string, args ...interface{}) {
+func (c *serverClient) log(format string, args ...interface{}) {
 	format = "[RTSP client " + c.conn.NetConn().RemoteAddr().String() + "] " + format
 	log.Printf(format, args...)
 }
 
-func (c *client) run() {
+func (c *serverClient) run() {
 	defer c.log("disconnected")
 	defer func() {
 		c.p.mutex.Lock()
@@ -107,12 +107,12 @@ func (c *client) run() {
 	}
 }
 
-func (c *client) writeResDeadline(res *gortsplib.Response) {
+func (c *serverClient) writeResDeadline(res *gortsplib.Response) {
 	c.conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 	c.conn.WriteResponse(res)
 }
 
-func (c *client) writeResError(req *gortsplib.Request, err error) {
+func (c *serverClient) writeResError(req *gortsplib.Request, err error) {
 	c.log("ERR: %s", err)
 
 	if cseq, ok := req.Header["CSeq"]; ok && len(cseq) == 1 {
@@ -131,7 +131,7 @@ func (c *client) writeResError(req *gortsplib.Request, err error) {
 	}
 }
 
-func (c *client) handleRequest(req *gortsplib.Request) bool {
+func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 	c.log(req.Method)
 
 	cseq, ok := req.Header["CSeq"]
