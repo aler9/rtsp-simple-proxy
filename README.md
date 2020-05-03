@@ -79,4 +79,5 @@ Related projects
 * https://github.com/aler9/gortsplib
 
 IETF Standard
-* https://tools.ietf.org/html/rfc7826
+* (1.0) https://tools.ietf.org/html/rfc2326
+* (2.0) https://tools.ietf.org/html/rfc7826

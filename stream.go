@@ -172,7 +172,7 @@ func (s *stream) run() {
 			conn := gortsplib.NewConnClient(nconn, _READ_TIMEOUT, _WRITE_TIMEOUT)
 
 			res, err := conn.WriteRequest(&gortsplib.Request{
-				Method: "OPTIONS",
+				Method: gortsplib.OPTIONS,
 				Url:    "rtsp://" + s.ur.Host + "/",
 			})
 			if err != nil {
@@ -195,7 +195,7 @@ func (s *stream) run() {
 			}
 
 			res, err = conn.WriteRequest(&gortsplib.Request{
-				Method: "DESCRIBE",
+				Method: gortsplib.DESCRIBE,
 				Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
 					if s.ur.RawQuery != "" {
 						return "?" + s.ur.RawQuery
@@ -228,7 +228,7 @@ func (s *stream) run() {
 				}
 
 				res, err = conn.WriteRequest(&gortsplib.Request{
-					Method: "DESCRIBE",
+					Method: gortsplib.DESCRIBE,
 					Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
 						if s.ur.RawQuery != "" {
 							return "?" + s.ur.RawQuery
@@ -333,7 +333,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 		}
 
 		res, err := conn.WriteRequest(&gortsplib.Request{
-			Method: "SETUP",
+			Method: gortsplib.SETUP,
 			Url: "rtsp://" + s.ur.Host + func() string {
 				ret := s.ur.Path
 
@@ -422,7 +422,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 	}
 
 	res, err := conn.WriteRequest(&gortsplib.Request{
-		Method: "PLAY",
+		Method: gortsplib.PLAY,
 		Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
 			if s.ur.RawQuery != "" {
 				return "?" + s.ur.RawQuery
@@ -473,7 +473,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 		select {
 		case <-tickerSendKeepalive.C:
 			_, err = conn.WriteRequest(&gortsplib.Request{
-				Method: "OPTIONS",
+				Method: gortsplib.OPTIONS,
 				Url:    "rtsp://" + s.ur.Host + "/",
 			})
 			if err != nil {
@@ -510,7 +510,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 		interleaved := fmt.Sprintf("interleaved=%d-%d", (i * 2), (i*2)+1)
 
 		res, err := conn.WriteRequest(&gortsplib.Request{
-			Method: "SETUP",
+			Method: gortsplib.SETUP,
 			Url: "rtsp://" + s.ur.Host + func() string {
 				ret := s.ur.Path
 
@@ -575,7 +575,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 	}
 
 	res, err := conn.WriteRequest(&gortsplib.Request{
-		Method: "PLAY",
+		Method: gortsplib.PLAY,
 		Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
 			if s.ur.RawQuery != "" {
 				return "?" + s.ur.RawQuery
