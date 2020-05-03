@@ -290,11 +290,7 @@ func (s *stream) run() {
 }
 
 func (s *stream) runUdp(conn *gortsplib.ConnClient) {
-	publisherAddr, err := net.ResolveUDPAddr("udp", s.ur.Hostname()+":0")
-	if err != nil {
-		s.log("ERR: %s", err)
-		return
-	}
+	publisherIp := conn.NetConn().RemoteAddr().(*net.TCPAddr).IP
 
 	var streamUdpListenerPairs []streamUdpListenerPair
 
@@ -310,13 +306,14 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 		var rtcpPort int
 		var rtpl *streamUdpListener
 		var rtcpl *streamUdpListener
-		err := func() error {
+		func() {
 			for {
 				// choose two consecutive ports in range 65536-10000
 				// rtp must be pair and rtcp odd
 				rtpPort = (rand.Intn((65535-10000)/2) * 2) + 10000
 				rtcpPort = rtpPort + 1
 
+				var err error
 				rtpl, err = newStreamUdpListener(s.p, rtpPort)
 				if err != nil {
 					continue
@@ -328,13 +325,9 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 					continue
 				}
 
-				return nil
+				return
 			}
 		}()
-		if err != nil {
-			s.log("ERR: %s", err)
-			return
-		}
 
 		res, err := conn.WriteRequest(&gortsplib.Request{
 			Method: gortsplib.SETUP,
@@ -407,13 +400,13 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 			return
 		}
 
-		rtpl.publisherIp = publisherAddr.IP
+		rtpl.publisherIp = publisherIp
 		rtpl.publisherPort = rtpServerPort
 		rtpl.trackId = i
 		rtpl.flow = _TRACK_FLOW_RTP
 		rtpl.path = s.path
 
-		rtcpl.publisherIp = publisherAddr.IP
+		rtcpl.publisherIp = publisherIp
 		rtcpl.publisherPort = rtcpServerPort
 		rtcpl.trackId = i
 		rtcpl.flow = _TRACK_FLOW_RTCP
