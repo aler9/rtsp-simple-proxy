@@ -173,7 +173,11 @@ func (s *stream) run() {
 
 			res, err := conn.WriteRequest(&gortsplib.Request{
 				Method: gortsplib.OPTIONS,
-				Url:    "rtsp://" + s.ur.Host + "/",
+				Url: &url.URL{
+					Scheme: "rtsp",
+					Host:   s.ur.Host,
+					Path:   "/",
+				},
 			})
 			if err != nil {
 				s.log("ERR: %s", err)
@@ -196,12 +200,12 @@ func (s *stream) run() {
 
 			res, err = conn.WriteRequest(&gortsplib.Request{
 				Method: gortsplib.DESCRIBE,
-				Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
-					if s.ur.RawQuery != "" {
-						return "?" + s.ur.RawQuery
-					}
-					return ""
-				}(),
+				Url: &url.URL{
+					Scheme:   "rtsp",
+					Host:     s.ur.Host,
+					Path:     s.ur.Path,
+					RawQuery: s.ur.RawQuery,
+				},
 			})
 			if err != nil {
 				s.log("ERR: %s", err)
@@ -229,12 +233,12 @@ func (s *stream) run() {
 
 				res, err = conn.WriteRequest(&gortsplib.Request{
 					Method: gortsplib.DESCRIBE,
-					Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
-						if s.ur.RawQuery != "" {
-							return "?" + s.ur.RawQuery
-						}
-						return ""
-					}(),
+					Url: &url.URL{
+						Scheme:   "rtsp",
+						Host:     s.ur.Host,
+						Path:     s.ur.Path,
+						RawQuery: s.ur.RawQuery,
+					},
 				})
 				if err != nil {
 					s.log("ERR: %s", err)
@@ -334,27 +338,27 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 
 		res, err := conn.WriteRequest(&gortsplib.Request{
 			Method: gortsplib.SETUP,
-			Url: "rtsp://" + s.ur.Host + func() string {
-				ret := s.ur.Path
+			Url: &url.URL{
+				Scheme: "rtsp",
+				Host:   s.ur.Host,
+				Path: func() string {
+					ret := s.ur.Path
 
-				if len(ret) == 0 || ret[len(ret)-1] != '/' {
-					ret += "/"
-				}
+					if len(ret) == 0 || ret[len(ret)-1] != '/' {
+						ret += "/"
+					}
 
-				control := media.Attributes.Value("control")
-				if control != "" {
-					ret += control
-				} else {
-					ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
-				}
+					control := media.Attributes.Value("control")
+					if control != "" {
+						ret += control
+					} else {
+						ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+					}
 
-				return ret
-			}() + func() string {
-				if s.ur.RawQuery != "" {
-					return "?" + s.ur.RawQuery
-				}
-				return ""
-			}(),
+					return ret
+				}(),
+				RawQuery: s.ur.RawQuery,
+			},
 			Header: gortsplib.Header{
 				"Transport": []string{strings.Join([]string{
 					"RTP/AVP/UDP",
@@ -423,12 +427,12 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 
 	res, err := conn.WriteRequest(&gortsplib.Request{
 		Method: gortsplib.PLAY,
-		Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
-			if s.ur.RawQuery != "" {
-				return "?" + s.ur.RawQuery
-			}
-			return ""
-		}(),
+		Url: &url.URL{
+			Scheme:   "rtsp",
+			Host:     s.ur.Host,
+			Path:     s.ur.Path,
+			RawQuery: s.ur.RawQuery,
+		},
 	})
 	if err != nil {
 		s.log("ERR: %s", err)
@@ -474,7 +478,11 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 		case <-tickerSendKeepalive.C:
 			_, err = conn.WriteRequest(&gortsplib.Request{
 				Method: gortsplib.OPTIONS,
-				Url:    "rtsp://" + s.ur.Host + "/",
+				Url: &url.URL{
+					Scheme: "rtsp",
+					Host:   s.ur.Host,
+					Path:   "/",
+				},
 			})
 			if err != nil {
 				s.log("ERR: %s", err)
@@ -511,27 +519,27 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 
 		res, err := conn.WriteRequest(&gortsplib.Request{
 			Method: gortsplib.SETUP,
-			Url: "rtsp://" + s.ur.Host + func() string {
-				ret := s.ur.Path
+			Url: &url.URL{
+				Scheme: "rtsp",
+				Host:   s.ur.Host,
+				Path: func() string {
+					ret := s.ur.Path
 
-				if len(ret) == 0 || ret[len(ret)-1] != '/' {
-					ret += "/"
-				}
+					if len(ret) == 0 || ret[len(ret)-1] != '/' {
+						ret += "/"
+					}
 
-				control := media.Attributes.Value("control")
-				if control != "" {
-					ret += control
-				} else {
-					ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
-				}
+					control := media.Attributes.Value("control")
+					if control != "" {
+						ret += control
+					} else {
+						ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+					}
 
-				return ret
-			}() + func() string {
-				if s.ur.RawQuery != "" {
-					return "?" + s.ur.RawQuery
-				}
-				return ""
-			}(),
+					return ret
+				}(),
+				RawQuery: s.ur.RawQuery,
+			},
 			Header: gortsplib.Header{
 				"Transport": []string{strings.Join([]string{
 					"RTP/AVP/TCP",
@@ -576,12 +584,12 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 
 	res, err := conn.WriteRequest(&gortsplib.Request{
 		Method: gortsplib.PLAY,
-		Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
-			if s.ur.RawQuery != "" {
-				return "?" + s.ur.RawQuery
-			}
-			return ""
-		}(),
+		Url: &url.URL{
+			Scheme:   "rtsp",
+			Host:     s.ur.Host,
+			Path:     s.ur.Path,
+			RawQuery: s.ur.RawQuery,
+		},
 	})
 	if err != nil {
 		s.log("ERR: %s", err)

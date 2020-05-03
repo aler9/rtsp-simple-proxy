@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"net/url"
 	"strings"
 
 	"github.com/aler9/gortsplib"
@@ -130,14 +129,8 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		return false
 	}
 
-	ur, err := url.Parse(req.Url)
-	if err != nil {
-		c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("unable to parse path '%s'", req.Url))
-		return false
-	}
-
 	path := func() string {
-		ret := ur.Path
+		ret := req.Url.Path
 
 		// remove leading slash
 		if len(ret) > 1 {
@@ -202,7 +195,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq":         []string{cseq[0]},
-				"Content-Base": []string{req.Url},
+				"Content-Base": []string{req.Url.String()},
 				"Content-Type": []string{"application/sdp"},
 			},
 			Content: sdp,
@@ -254,7 +247,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 					return false
 				}
 
-				err = func() error {
+				err := func() error {
 					c.p.mutex.Lock()
 					defer c.p.mutex.Unlock()
 
@@ -317,7 +310,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 					return false
 				}
 
-				err = func() error {
+				err := func() error {
 					c.p.mutex.Lock()
 					defer c.p.mutex.Unlock()
 
