@@ -87,17 +87,6 @@ func sdpFilter(msgIn *sdp.Message, byteIn []byte) (*sdp.Message, []byte) {
 	return msgOut, byteOut
 }
 
-func writeReqReadRes(conn *gortsplib.ConnClient, req *gortsplib.Request) (*gortsplib.Response, error) {
-	conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
-	err := conn.WriteRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	conn.NetConn().SetReadDeadline(time.Now().Add(_READ_TIMEOUT))
-	return conn.ReadResponse()
-}
-
 type streamUdpListenerPair struct {
 	rtpl  *streamUdpListener
 	rtcpl *streamUdpListener
@@ -180,9 +169,9 @@ func (s *stream) run() {
 			}
 			defer nconn.Close()
 
-			conn := gortsplib.NewConnClient(nconn)
+			conn := gortsplib.NewConnClient(nconn, _READ_TIMEOUT, _WRITE_TIMEOUT)
 
-			res, err := writeReqReadRes(conn, &gortsplib.Request{
+			res, err := conn.WriteRequest(&gortsplib.Request{
 				Method: "OPTIONS",
 				Url:    "rtsp://" + s.ur.Host + "/",
 			})
@@ -205,7 +194,7 @@ func (s *stream) run() {
 				conn.SetSession(sx.Session)
 			}
 
-			res, err = writeReqReadRes(conn, &gortsplib.Request{
+			res, err = conn.WriteRequest(&gortsplib.Request{
 				Method: "DESCRIBE",
 				Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
 					if s.ur.RawQuery != "" {
@@ -238,7 +227,7 @@ func (s *stream) run() {
 					return
 				}
 
-				res, err = writeReqReadRes(conn, &gortsplib.Request{
+				res, err = conn.WriteRequest(&gortsplib.Request{
 					Method: "DESCRIBE",
 					Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
 						if s.ur.RawQuery != "" {
@@ -343,7 +332,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 			return
 		}
 
-		res, err := writeReqReadRes(conn, &gortsplib.Request{
+		res, err := conn.WriteRequest(&gortsplib.Request{
 			Method: "SETUP",
 			Url: "rtsp://" + s.ur.Host + func() string {
 				ret := s.ur.Path
@@ -432,7 +421,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 		})
 	}
 
-	res, err := writeReqReadRes(conn, &gortsplib.Request{
+	res, err := conn.WriteRequest(&gortsplib.Request{
 		Method: "PLAY",
 		Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
 			if s.ur.RawQuery != "" {
@@ -483,7 +472,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 	for {
 		select {
 		case <-tickerSendKeepalive.C:
-			_, err = writeReqReadRes(conn, &gortsplib.Request{
+			_, err = conn.WriteRequest(&gortsplib.Request{
 				Method: "OPTIONS",
 				Url:    "rtsp://" + s.ur.Host + "/",
 			})
@@ -520,7 +509,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 	for i, media := range s.clientSdpParsed.Medias {
 		interleaved := fmt.Sprintf("interleaved=%d-%d", (i * 2), (i*2)+1)
 
-		res, err := writeReqReadRes(conn, &gortsplib.Request{
+		res, err := conn.WriteRequest(&gortsplib.Request{
 			Method: "SETUP",
 			Url: "rtsp://" + s.ur.Host + func() string {
 				ret := s.ur.Path
@@ -585,7 +574,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 		}
 	}
 
-	res, err := writeReqReadRes(conn, &gortsplib.Request{
+	res, err := conn.WriteRequest(&gortsplib.Request{
 		Method: "PLAY",
 		Url: "rtsp://" + s.ur.Host + s.ur.Path + func() string {
 			if s.ur.RawQuery != "" {
@@ -626,7 +615,6 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 	s.log("ready")
 
 	for {
-		conn.NetConn().SetReadDeadline(time.Now().Add(_READ_TIMEOUT))
 		frame, err := conn.ReadInterleavedFrame()
 		if err != nil {
 			s.log("ERR: %s", err)

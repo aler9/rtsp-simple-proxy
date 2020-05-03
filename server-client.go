@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/aler9/gortsplib"
 )
@@ -48,7 +47,7 @@ type serverClient struct {
 func newServerClient(p *program, nconn net.Conn) *serverClient {
 	c := &serverClient{
 		p:         p,
-		conn:      gortsplib.NewConnServer(nconn),
+		conn:      gortsplib.NewConnServer(nconn, _READ_TIMEOUT, _WRITE_TIMEOUT),
 		state:     _CLIENT_STATE_STARTING,
 		chanWrite: make(chan *gortsplib.InterleavedFrame),
 	}
@@ -107,11 +106,6 @@ func (c *serverClient) run() {
 	}
 }
 
-func (c *serverClient) writeResDeadline(res *gortsplib.Response) {
-	c.conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
-	c.conn.WriteResponse(res)
-}
-
 func (c *serverClient) writeResError(req *gortsplib.Request, code gortsplib.StatusCode, err error) {
 	c.log("ERR: %s", err)
 
@@ -120,7 +114,7 @@ func (c *serverClient) writeResError(req *gortsplib.Request, code gortsplib.Stat
 		header["CSeq"] = []string{cseq[0]}
 	}
 
-	c.writeResDeadline(&gortsplib.Response{
+	c.conn.WriteResponse(&gortsplib.Response{
 		StatusCode: code,
 		Header:     header,
 	})
@@ -162,7 +156,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		// do not check state, since OPTIONS can be requested
 		// in any state
 
-		c.writeResDeadline(&gortsplib.Response{
+		c.conn.WriteResponse(&gortsplib.Response{
 			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq": []string{cseq[0]},
@@ -203,7 +197,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 			return false
 		}
 
-		c.writeResDeadline(&gortsplib.Response{
+		c.conn.WriteResponse(&gortsplib.Response{
 			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq":         []string{cseq[0]},
@@ -295,7 +289,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 					return false
 				}
 
-				c.writeResDeadline(&gortsplib.Response{
+				c.conn.WriteResponse(&gortsplib.Response{
 					StatusCode: gortsplib.StatusOK,
 					Header: gortsplib.Header{
 						"CSeq": []string{cseq[0]},
@@ -356,7 +350,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 
 				interleaved := fmt.Sprintf("%d-%d", ((len(c.streamTracks) - 1) * 2), ((len(c.streamTracks)-1)*2)+1)
 
-				c.writeResDeadline(&gortsplib.Response{
+				c.conn.WriteResponse(&gortsplib.Response{
 					StatusCode: gortsplib.StatusOK,
 					Header: gortsplib.Header{
 						"CSeq": []string{cseq[0]},
@@ -414,7 +408,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		// first write response, then set state
 		// otherwise, in case of TCP connections, RTP packets could be written
 		// before the response
-		c.writeResDeadline(&gortsplib.Response{
+		c.conn.WriteResponse(&gortsplib.Response{
 			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq":    []string{cseq[0]},
@@ -438,7 +432,6 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 			// write RTP frames sequentially
 			go func() {
 				for frame := range c.chanWrite {
-					c.conn.NetConn().SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 					c.conn.WriteInterleavedFrame(frame)
 				}
 			}()
@@ -475,7 +468,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		c.state = _CLIENT_STATE_PRE_PLAY
 		c.p.mutex.Unlock()
 
-		c.writeResDeadline(&gortsplib.Response{
+		c.conn.WriteResponse(&gortsplib.Response{
 			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq":    []string{cseq[0]},
