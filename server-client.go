@@ -112,23 +112,18 @@ func (c *serverClient) writeResDeadline(res *gortsplib.Response) {
 	c.conn.WriteResponse(res)
 }
 
-func (c *serverClient) writeResError(req *gortsplib.Request, err error) {
+func (c *serverClient) writeResError(req *gortsplib.Request, code gortsplib.StatusCode, err error) {
 	c.log("ERR: %s", err)
 
+	header := gortsplib.Header{}
 	if cseq, ok := req.Header["CSeq"]; ok && len(cseq) == 1 {
-		c.writeResDeadline(&gortsplib.Response{
-			StatusCode: 400,
-			Status:     "Bad Request",
-			Header: gortsplib.Header{
-				"CSeq": []string{cseq[0]},
-			},
-		})
-	} else {
-		c.writeResDeadline(&gortsplib.Response{
-			StatusCode: 400,
-			Status:     "Bad Request",
-		})
+		header["CSeq"] = []string{cseq[0]}
 	}
+
+	c.writeResDeadline(&gortsplib.Response{
+		StatusCode: code,
+		Header:     header,
+	})
 }
 
 func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
@@ -136,13 +131,13 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 
 	cseq, ok := req.Header["CSeq"]
 	if !ok || len(cseq) != 1 {
-		c.writeResError(req, fmt.Errorf("cseq missing"))
+		c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("cseq missing"))
 		return false
 	}
 
 	ur, err := url.Parse(req.Url)
 	if err != nil {
-		c.writeResError(req, fmt.Errorf("unable to parse path '%s'", req.Url))
+		c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("unable to parse path '%s'", req.Url))
 		return false
 	}
 
@@ -168,8 +163,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		// in any state
 
 		c.writeResDeadline(&gortsplib.Response{
-			StatusCode: 200,
-			Status:     "OK",
+			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq": []string{cseq[0]},
 				"Public": []string{strings.Join([]string{
@@ -185,7 +179,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 
 	case "DESCRIBE":
 		if c.state != _CLIENT_STATE_STARTING {
-			c.writeResError(req, fmt.Errorf("client is in state '%d'", c.state))
+			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("client is in state '%d'", c.state))
 			return false
 		}
 
@@ -205,13 +199,12 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 			return str.serverSdpText, nil
 		}()
 		if err != nil {
-			c.writeResError(req, err)
+			c.writeResError(req, gortsplib.StatusBadRequest, err)
 			return false
 		}
 
 		c.writeResDeadline(&gortsplib.Response{
-			StatusCode: 200,
-			Status:     "OK",
+			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq":         []string{cseq[0]},
 				"Content-Base": []string{req.Url},
@@ -224,14 +217,14 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 	case "SETUP":
 		tsRaw, ok := req.Header["Transport"]
 		if !ok || len(tsRaw) != 1 {
-			c.writeResError(req, fmt.Errorf("transport header missing"))
+			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("transport header missing"))
 			return false
 		}
 
 		th := gortsplib.ReadHeaderTransport(tsRaw[0])
 
 		if _, ok := th["unicast"]; !ok {
-			c.writeResError(req, fmt.Errorf("transport header does not contain unicast"))
+			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("transport header does not contain unicast"))
 			return false
 		}
 
@@ -251,25 +244,18 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 				return false
 			}() {
 				if _, ok := c.p.protocols[_STREAM_PROTOCOL_UDP]; !ok {
-					c.log("ERR: udp streaming is disabled")
-					c.writeResDeadline(&gortsplib.Response{
-						StatusCode: 461,
-						Status:     "Unsupported Transport",
-						Header: gortsplib.Header{
-							"CSeq": []string{cseq[0]},
-						},
-					})
+					c.writeResError(req, gortsplib.StatusUnsupportedTransport, fmt.Errorf("UDP streaming is disabled"))
 					return false
 				}
 
 				rtpPort, rtcpPort := th.GetPorts("client_port")
 				if rtpPort == 0 || rtcpPort == 0 {
-					c.writeResError(req, fmt.Errorf("transport header does not have valid client ports (%s)", tsRaw[0]))
+					c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("transport header does not have valid client ports (%s)", tsRaw[0]))
 					return false
 				}
 
 				if c.path != "" && path != c.path {
-					c.writeResError(req, fmt.Errorf("path has changed"))
+					c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("path has changed"))
 					return false
 				}
 
@@ -305,13 +291,12 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 					return nil
 				}()
 				if err != nil {
-					c.writeResError(req, err)
+					c.writeResError(req, gortsplib.StatusBadRequest, err)
 					return false
 				}
 
 				c.writeResDeadline(&gortsplib.Response{
-					StatusCode: 200,
-					Status:     "OK",
+					StatusCode: gortsplib.StatusOK,
 					Header: gortsplib.Header{
 						"CSeq": []string{cseq[0]},
 						"Transport": []string{strings.Join([]string{
@@ -328,19 +313,12 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 				// play via TCP
 			} else if _, ok := th["RTP/AVP/TCP"]; ok {
 				if _, ok := c.p.protocols[_STREAM_PROTOCOL_TCP]; !ok {
-					c.log("ERR: tcp streaming is disabled")
-					c.writeResDeadline(&gortsplib.Response{
-						StatusCode: 461,
-						Status:     "Unsupported Transport",
-						Header: gortsplib.Header{
-							"CSeq": []string{cseq[0]},
-						},
-					})
+					c.writeResError(req, gortsplib.StatusUnsupportedTransport, fmt.Errorf("TCP streaming is disabled"))
 					return false
 				}
 
 				if c.path != "" && path != c.path {
-					c.writeResError(req, fmt.Errorf("path has changed"))
+					c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("path has changed"))
 					return false
 				}
 
@@ -372,15 +350,14 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 					return nil
 				}()
 				if err != nil {
-					c.writeResError(req, err)
+					c.writeResError(req, gortsplib.StatusBadRequest, err)
 					return false
 				}
 
 				interleaved := fmt.Sprintf("%d-%d", ((len(c.streamTracks) - 1) * 2), ((len(c.streamTracks)-1)*2)+1)
 
 				c.writeResDeadline(&gortsplib.Response{
-					StatusCode: 200,
-					Status:     "OK",
+					StatusCode: gortsplib.StatusOK,
 					Header: gortsplib.Header{
 						"CSeq": []string{cseq[0]},
 						"Transport": []string{strings.Join([]string{
@@ -394,23 +371,23 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 				return true
 
 			} else {
-				c.writeResError(req, fmt.Errorf("transport header does not contain a valid protocol (RTP/AVP, RTP/AVP/UDP or RTP/AVP/TCP) (%s)", tsRaw[0]))
+				c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("transport header does not contain a valid protocol (RTP/AVP, RTP/AVP/UDP or RTP/AVP/TCP) (%s)", tsRaw[0]))
 				return false
 			}
 
 		default:
-			c.writeResError(req, fmt.Errorf("client is in state '%d'", c.state))
+			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("client is in state '%d'", c.state))
 			return false
 		}
 
 	case "PLAY":
 		if c.state != _CLIENT_STATE_PRE_PLAY {
-			c.writeResError(req, fmt.Errorf("client is in state '%d'", c.state))
+			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("client is in state '%d'", c.state))
 			return false
 		}
 
 		if path != c.path {
-			c.writeResError(req, fmt.Errorf("path has changed"))
+			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("path has changed"))
 			return false
 		}
 
@@ -430,7 +407,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 			return nil
 		}()
 		if err != nil {
-			c.writeResError(req, err)
+			c.writeResError(req, gortsplib.StatusBadRequest, err)
 			return false
 		}
 
@@ -438,8 +415,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		// otherwise, in case of TCP connections, RTP packets could be written
 		// before the response
 		c.writeResDeadline(&gortsplib.Response{
-			StatusCode: 200,
-			Status:     "OK",
+			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq":    []string{cseq[0]},
 				"Session": []string{"12345678"},
@@ -484,12 +460,12 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 
 	case "PAUSE":
 		if c.state != _CLIENT_STATE_PLAY {
-			c.writeResError(req, fmt.Errorf("client is in state '%d'", c.state))
+			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("client is in state '%d'", c.state))
 			return false
 		}
 
 		if path != c.path {
-			c.writeResError(req, fmt.Errorf("path has changed"))
+			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("path has changed"))
 			return false
 		}
 
@@ -500,8 +476,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		c.p.mutex.Unlock()
 
 		c.writeResDeadline(&gortsplib.Response{
-			StatusCode: 200,
-			Status:     "OK",
+			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq":    []string{cseq[0]},
 				"Session": []string{"12345678"},
@@ -514,7 +489,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		return false
 
 	default:
-		c.writeResError(req, fmt.Errorf("unhandled method '%s'", req.Method))
+		c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("unhandled method '%s'", req.Method))
 		return false
 	}
 }
