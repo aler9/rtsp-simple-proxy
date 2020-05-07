@@ -169,7 +169,11 @@ func (s *stream) run() {
 			}
 			defer nconn.Close()
 
-			conn := gortsplib.NewConnClient(nconn, _READ_TIMEOUT, _WRITE_TIMEOUT)
+			conn := gortsplib.NewConnClient(gortsplib.ConnClientConf{
+				NConn:        nconn,
+				ReadTimeout:  _READ_TIMEOUT,
+				WriteTimeout: _WRITE_TIMEOUT,
+			})
 
 			res, err := conn.WriteRequest(&gortsplib.Request{
 				Method: gortsplib.OPTIONS,
