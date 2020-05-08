@@ -38,7 +38,7 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
     streams:
       # name of the stream
       mypath:
-        # url of the source stream
+        # url of the source stream, in the format rtsp://user:pass@host:port/path
         url: rtsp://localhost:8554/mystream
         # whether to receive this stream in udp or tcp
         useTcp: no
