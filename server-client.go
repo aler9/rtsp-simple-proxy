@@ -54,20 +54,20 @@ func newServerClient(p *program, nconn net.Conn) *serverClient {
 		write: make(chan *gortsplib.InterleavedFrame),
 	}
 
-	c.p.mutex.Lock()
-	c.p.clients[c] = struct{}{}
-	c.p.mutex.Unlock()
+	c.p.rtspl.mutex.Lock()
+	c.p.rtspl.clients[c] = struct{}{}
+	c.p.rtspl.mutex.Unlock()
 
 	return c
 }
 
 func (c *serverClient) close() error {
 	// already deleted
-	if _, ok := c.p.clients[c]; !ok {
+	if _, ok := c.p.rtspl.clients[c]; !ok {
 		return nil
 	}
 
-	delete(c.p.clients, c)
+	delete(c.p.rtspl.clients, c)
 	c.conn.NetConn().Close()
 	close(c.write)
 
@@ -91,8 +91,8 @@ func (c *serverClient) zone() string {
 func (c *serverClient) run() {
 	defer c.log("disconnected")
 	defer func() {
-		c.p.mutex.Lock()
-		defer c.p.mutex.Unlock()
+		c.p.rtspl.mutex.Lock()
+		defer c.p.rtspl.mutex.Unlock()
 		c.close()
 	}()
 
@@ -180,8 +180,8 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		}
 
 		sdp, err := func() ([]byte, error) {
-			c.p.mutex.RLock()
-			defer c.p.mutex.RUnlock()
+			c.p.rtspl.mutex.RLock()
+			defer c.p.rtspl.mutex.RUnlock()
 
 			str, ok := c.p.streams[path]
 			if !ok {
@@ -256,8 +256,8 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 				}
 
 				err := func() error {
-					c.p.mutex.Lock()
-					defer c.p.mutex.Unlock()
+					c.p.rtspl.mutex.Lock()
+					defer c.p.rtspl.mutex.Unlock()
 
 					str, ok := c.p.streams[path]
 					if !ok {
@@ -319,8 +319,8 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 				}
 
 				err := func() error {
-					c.p.mutex.Lock()
-					defer c.p.mutex.Unlock()
+					c.p.rtspl.mutex.Lock()
+					defer c.p.rtspl.mutex.Unlock()
 
 					str, ok := c.p.streams[path]
 					if !ok {
@@ -388,8 +388,8 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		}
 
 		err := func() error {
-			c.p.mutex.Lock()
-			defer c.p.mutex.Unlock()
+			c.p.rtspl.mutex.Lock()
+			defer c.p.rtspl.mutex.Unlock()
 
 			str, ok := c.p.streams[c.path]
 			if !ok {
@@ -425,9 +425,9 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 			return "tracks"
 		}(), c.streamProtocol)
 
-		c.p.mutex.Lock()
+		c.p.rtspl.mutex.Lock()
 		c.state = _CLIENT_STATE_PLAY
-		c.p.mutex.Unlock()
+		c.p.rtspl.mutex.Unlock()
 
 		// when protocol is TCP, the RTSP connection becomes a RTP connection
 		if c.streamProtocol == _STREAM_PROTOCOL_TCP {
@@ -466,9 +466,9 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 
 		c.log("paused")
 
-		c.p.mutex.Lock()
+		c.p.rtspl.mutex.Lock()
 		c.state = _CLIENT_STATE_PRE_PLAY
-		c.p.mutex.Unlock()
+		c.p.rtspl.mutex.Unlock()
 
 		c.conn.WriteResponse(&gortsplib.Response{
 			StatusCode: gortsplib.StatusOK,

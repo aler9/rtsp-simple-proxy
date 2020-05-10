@@ -74,8 +74,8 @@ func (l *streamUdpListener) run() {
 		}
 
 		func() {
-			l.p.mutex.RLock()
-			defer l.p.mutex.RUnlock()
+			l.p.rtspl.mutex.RLock()
+			defer l.p.rtspl.mutex.RUnlock()
 
 			l.p.forwardTrack(l.path, l.trackId, l.flow, buf[:n])
 		}()

@@ -267,8 +267,8 @@ func (s *stream) run() {
 			serverSdpParsed, serverSdpText := sdpFilter(clientSdpParsed, res.Content)
 
 			func() {
-				s.p.mutex.Lock()
-				defer s.p.mutex.Unlock()
+				s.p.rtspl.mutex.Lock()
+				defer s.p.rtspl.mutex.Unlock()
 
 				s.clientSdpParsed = clientSdpParsed
 				s.serverSdpText = serverSdpText
@@ -432,18 +432,18 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 	tickerCheckStream := time.NewTicker(_CHECK_STREAM_INTERVAL)
 
 	func() {
-		s.p.mutex.Lock()
-		defer s.p.mutex.Unlock()
+		s.p.rtspl.mutex.Lock()
+		defer s.p.rtspl.mutex.Unlock()
 		s.state = _STREAM_STATE_READY
 	}()
 
 	defer func() {
-		s.p.mutex.Lock()
-		defer s.p.mutex.Unlock()
+		s.p.rtspl.mutex.Lock()
+		defer s.p.rtspl.mutex.Unlock()
 		s.state = _STREAM_STATE_STARTING
 
 		// disconnect all clients
-		for c := range s.p.clients {
+		for c := range s.p.rtspl.clients {
 			if c.path == s.path {
 				c.close()
 			}
@@ -572,18 +572,18 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 	}
 
 	func() {
-		s.p.mutex.Lock()
-		defer s.p.mutex.Unlock()
+		s.p.rtspl.mutex.Lock()
+		defer s.p.rtspl.mutex.Unlock()
 		s.state = _STREAM_STATE_READY
 	}()
 
 	defer func() {
-		s.p.mutex.Lock()
-		defer s.p.mutex.Unlock()
+		s.p.rtspl.mutex.Lock()
+		defer s.p.rtspl.mutex.Unlock()
 		s.state = _STREAM_STATE_STARTING
 
 		// disconnect all clients
-		for c := range s.p.clients {
+		for c := range s.p.rtspl.clients {
 			if c.path == s.path {
 				c.close()
 			}
@@ -602,8 +602,8 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 		trackId, trackFlow := interleavedChannelToTrack(frame.Channel)
 
 		func() {
-			s.p.mutex.RLock()
-			defer s.p.mutex.RUnlock()
+			s.p.rtspl.mutex.RLock()
+			defer s.p.rtspl.mutex.RUnlock()
 
 			s.p.forwardTrack(s.path, trackId, trackFlow, frame.Content)
 		}()
