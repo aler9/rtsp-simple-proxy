@@ -109,6 +109,9 @@ type stream struct {
 	clientSdpParsed *sdp.Message
 	serverSdpText   []byte
 	serverSdpParsed *sdp.Message
+	firstTime       bool
+	terminate       chan struct{}
+	done            chan struct{}
 }
 
 func newStream(p *program, path string, conf streamConf) (*stream, error) {
@@ -131,12 +134,14 @@ func newStream(p *program, path string, conf streamConf) (*stream, error) {
 	}
 
 	s := &stream{
-		p:     p,
-		state: _STREAM_STATE_STARTING,
-		path:  path,
-		conf:  conf,
-		ur:    ur,
-		proto: proto,
+		p:         p,
+		state:     _STREAM_STATE_STARTING,
+		path:      path,
+		conf:      conf,
+		ur:        ur,
+		proto:     proto,
+		terminate: make(chan struct{}),
+		done:      make(chan struct{}),
 	}
 
 	return s, nil
@@ -148,141 +153,164 @@ func (s *stream) log(format string, args ...interface{}) {
 }
 
 func (s *stream) run() {
-	firstTime := true
-
 	for {
-		if firstTime {
-			firstTime = false
-		} else {
-			time.Sleep(_RETRY_INTERVAL)
+		ok := s.do()
+		if !ok {
+			break
+		}
+	}
+
+	close(s.done)
+}
+
+func (s *stream) do() bool {
+	if s.firstTime {
+		s.firstTime = false
+	} else {
+		t := time.NewTimer(_RETRY_INTERVAL)
+		select {
+		case <-s.terminate:
+			return false
+		case <-t.C:
+		}
+	}
+
+	s.log("initializing with protocol %s", s.proto)
+
+	var nconn net.Conn
+	var err error
+	dialDone := make(chan struct{})
+	go func() {
+		nconn, err = net.DialTimeout("tcp", s.ur.Host, _DIAL_TIMEOUT)
+		close(dialDone)
+	}()
+
+	select {
+	case <-s.terminate:
+		return false
+	case <-dialDone:
+	}
+
+	if err != nil {
+		s.log("ERR: %s", err)
+		return true
+	}
+	defer nconn.Close()
+
+	conn := gortsplib.NewConnClient(gortsplib.ConnClientConf{
+		NConn:        nconn,
+		ReadTimeout:  _READ_TIMEOUT,
+		WriteTimeout: _WRITE_TIMEOUT,
+	})
+
+	res, err := conn.WriteRequest(&gortsplib.Request{
+		Method: gortsplib.OPTIONS,
+		Url: &url.URL{
+			Scheme: "rtsp",
+			Host:   s.ur.Host,
+			Path:   "/",
+		},
+	})
+	if err != nil {
+		s.log("ERR: %s", err)
+		return true
+	}
+
+	if res.StatusCode != 200 {
+		s.log("ERR: OPTIONS returned code %d", res.StatusCode)
+		return true
+	}
+
+	res, err = conn.WriteRequest(&gortsplib.Request{
+		Method: gortsplib.DESCRIBE,
+		Url: &url.URL{
+			Scheme:   "rtsp",
+			Host:     s.ur.Host,
+			Path:     s.ur.Path,
+			RawQuery: s.ur.RawQuery,
+		},
+	})
+	if err != nil {
+		s.log("ERR: %s", err)
+		return true
+	}
+
+	if res.StatusCode == 401 {
+		if s.ur.User == nil {
+			s.log("ERR: 401 but user not provided")
+			return true
 		}
 
-		s.log("initializing with protocol %s", s.proto)
+		user := s.ur.User.Username()
+		pass, _ := s.ur.User.Password()
+		if pass == "" {
+			s.log("ERR: 401 but password not provided")
+			return true
+		}
 
-		func() {
-			nconn, err := net.DialTimeout("tcp", s.ur.Host, _DIAL_TIMEOUT)
-			if err != nil {
-				s.log("ERR: %s", err)
-				return
-			}
-			defer nconn.Close()
+		err = conn.SetCredentials(res.Header["WWW-Authenticate"], user, pass)
+		if err != nil {
+			s.log("ERR: unable to set credentials: %s", err)
+			return true
+		}
 
-			conn := gortsplib.NewConnClient(gortsplib.ConnClientConf{
-				NConn:        nconn,
-				ReadTimeout:  _READ_TIMEOUT,
-				WriteTimeout: _WRITE_TIMEOUT,
-			})
+		res, err = conn.WriteRequest(&gortsplib.Request{
+			Method: gortsplib.DESCRIBE,
+			Url: &url.URL{
+				Scheme:   "rtsp",
+				Host:     s.ur.Host,
+				Path:     s.ur.Path,
+				RawQuery: s.ur.RawQuery,
+			},
+		})
+		if err != nil {
+			s.log("ERR: %s", err)
+			return true
+		}
+	}
 
-			res, err := conn.WriteRequest(&gortsplib.Request{
-				Method: gortsplib.OPTIONS,
-				Url: &url.URL{
-					Scheme: "rtsp",
-					Host:   s.ur.Host,
-					Path:   "/",
-				},
-			})
-			if err != nil {
-				s.log("ERR: %s", err)
-				return
-			}
+	if res.StatusCode != 200 {
+		s.log("ERR: DESCRIBE returned code %d", res.StatusCode)
+		return true
+	}
 
-			if res.StatusCode != 200 {
-				s.log("ERR: OPTIONS returned code %d", res.StatusCode)
-				return
-			}
+	contentType, ok := res.Header["Content-Type"]
+	if !ok || len(contentType) != 1 {
+		s.log("ERR: Content-Type not provided")
+		return true
+	}
 
-			res, err = conn.WriteRequest(&gortsplib.Request{
-				Method: gortsplib.DESCRIBE,
-				Url: &url.URL{
-					Scheme:   "rtsp",
-					Host:     s.ur.Host,
-					Path:     s.ur.Path,
-					RawQuery: s.ur.RawQuery,
-				},
-			})
-			if err != nil {
-				s.log("ERR: %s", err)
-				return
-			}
+	if contentType[0] != "application/sdp" {
+		s.log("ERR: wrong Content-Type, expected application/sdp")
+		return true
+	}
 
-			if res.StatusCode == 401 {
-				if s.ur.User == nil {
-					s.log("ERR: 401 but user not provided")
-					return
-				}
+	clientSdpParsed, err := sdpParse(res.Content)
+	if err != nil {
+		s.log("ERR: invalid SDP: %s", err)
+		return true
+	}
 
-				user := s.ur.User.Username()
-				pass, _ := s.ur.User.Password()
-				if pass == "" {
-					s.log("ERR: 401 but password not provided")
-					return
-				}
+	// create a filtered SDP that is used by the server (not by the client)
+	serverSdpParsed, serverSdpText := sdpFilter(clientSdpParsed, res.Content)
 
-				err = conn.SetCredentials(res.Header["WWW-Authenticate"], user, pass)
-				if err != nil {
-					s.log("ERR: unable to set credentials: %s", err)
-					return
-				}
+	func() {
+		s.p.tcpl.mutex.Lock()
+		defer s.p.tcpl.mutex.Unlock()
 
-				res, err = conn.WriteRequest(&gortsplib.Request{
-					Method: gortsplib.DESCRIBE,
-					Url: &url.URL{
-						Scheme:   "rtsp",
-						Host:     s.ur.Host,
-						Path:     s.ur.Path,
-						RawQuery: s.ur.RawQuery,
-					},
-				})
-				if err != nil {
-					s.log("ERR: %s", err)
-					return
-				}
-			}
+		s.clientSdpParsed = clientSdpParsed
+		s.serverSdpText = serverSdpText
+		s.serverSdpParsed = serverSdpParsed
+	}()
 
-			if res.StatusCode != 200 {
-				s.log("ERR: DESCRIBE returned code %d", res.StatusCode)
-				return
-			}
-
-			contentType, ok := res.Header["Content-Type"]
-			if !ok || len(contentType) != 1 {
-				s.log("ERR: Content-Type not provided")
-				return
-			}
-
-			if contentType[0] != "application/sdp" {
-				s.log("ERR: wrong Content-Type, expected application/sdp")
-				return
-			}
-
-			clientSdpParsed, err := sdpParse(res.Content)
-			if err != nil {
-				s.log("ERR: invalid SDP: %s", err)
-				return
-			}
-
-			// create a filtered SDP that is used by the server (not by the client)
-			serverSdpParsed, serverSdpText := sdpFilter(clientSdpParsed, res.Content)
-
-			func() {
-				s.p.tcpl.mutex.Lock()
-				defer s.p.tcpl.mutex.Unlock()
-
-				s.clientSdpParsed = clientSdpParsed
-				s.serverSdpText = serverSdpText
-				s.serverSdpParsed = serverSdpParsed
-			}()
-
-			if s.proto == _STREAM_PROTOCOL_UDP {
-				s.runUdp(conn)
-			} else {
-				s.runTcp(conn)
-			}
-		}()
+	if s.proto == _STREAM_PROTOCOL_UDP {
+		return s.runUdp(conn)
+	} else {
+		return s.runTcp(conn)
 	}
 }
 
-func (s *stream) runUdp(conn *gortsplib.ConnClient) {
+func (s *stream) runUdp(conn *gortsplib.ConnClient) bool {
 	publisherIp := conn.NetConn().RemoteAddr().(*net.TCPAddr).IP
 
 	var streamUdpListenerPairs []streamUdpListenerPair
@@ -357,14 +385,14 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 			s.log("ERR: %s", err)
 			udplRtp.close()
 			udplRtcp.close()
-			return
+			return true
 		}
 
 		if res.StatusCode != 200 {
 			s.log("ERR: SETUP returned code %d", res.StatusCode)
 			udplRtp.close()
 			udplRtcp.close()
-			return
+			return true
 		}
 
 		tsRaw, ok := res.Header["Transport"]
@@ -372,7 +400,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 			s.log("ERR: transport header not provided")
 			udplRtp.close()
 			udplRtcp.close()
-			return
+			return true
 		}
 
 		th := gortsplib.ReadHeaderTransport(tsRaw[0])
@@ -381,7 +409,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 			s.log("ERR: server ports not provided")
 			udplRtp.close()
 			udplRtcp.close()
-			return
+			return true
 		}
 
 		udplRtp.publisherIp = publisherIp
@@ -413,12 +441,12 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 	})
 	if err != nil {
 		s.log("ERR: %s", err)
-		return
+		return true
 	}
 
 	if res.StatusCode != 200 {
 		s.log("ERR: PLAY returned code %d", res.StatusCode)
-		return
+		return true
 	}
 
 	for _, pair := range streamUdpListenerPairs {
@@ -427,7 +455,10 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 	}
 
 	tickerSendKeepalive := time.NewTicker(_KEEPALIVE_INTERVAL)
+	defer tickerSendKeepalive.Stop()
+
 	tickerCheckStream := time.NewTicker(_CHECK_STREAM_INTERVAL)
+	defer tickerSendKeepalive.Stop()
 
 	func() {
 		s.p.tcpl.mutex.Lock()
@@ -452,6 +483,9 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 
 	for {
 		select {
+		case <-s.terminate:
+			return false
+
 		case <-tickerSendKeepalive.C:
 			_, err = conn.WriteRequest(&gortsplib.Request{
 				Method: gortsplib.OPTIONS,
@@ -463,7 +497,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 			})
 			if err != nil {
 				s.log("ERR: %s", err)
-				return
+				return true
 			}
 
 		case <-tickerCheckStream.C:
@@ -484,13 +518,13 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 
 			if time.Since(lastFrameTime) >= _STREAM_DEAD_AFTER {
 				s.log("ERR: stream is dead")
-				return
+				return true
 			}
 		}
 	}
 }
 
-func (s *stream) runTcp(conn *gortsplib.ConnClient) {
+func (s *stream) runTcp(conn *gortsplib.ConnClient) bool {
 	for i, media := range s.clientSdpParsed.Medias {
 		interleaved := fmt.Sprintf("interleaved=%d-%d", (i * 2), (i*2)+1)
 
@@ -527,18 +561,18 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 		})
 		if err != nil {
 			s.log("ERR: %s", err)
-			return
+			return true
 		}
 
 		if res.StatusCode != 200 {
 			s.log("ERR: SETUP returned code %d", res.StatusCode)
-			return
+			return true
 		}
 
 		tsRaw, ok := res.Header["Transport"]
 		if !ok || len(tsRaw) != 1 {
 			s.log("ERR: transport header not provided")
-			return
+			return true
 		}
 
 		th := gortsplib.ReadHeaderTransport(tsRaw[0])
@@ -546,7 +580,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 		_, ok = th[interleaved]
 		if !ok {
 			s.log("ERR: transport header does not have %s (%s)", interleaved, tsRaw[0])
-			return
+			return true
 		}
 	}
 
@@ -561,12 +595,12 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 	})
 	if err != nil {
 		s.log("ERR: %s", err)
-		return
+		return true
 	}
 
 	if res.StatusCode != 200 {
 		s.log("ERR: PLAY returned code %d", res.StatusCode)
-		return
+		return true
 	}
 
 	func() {
@@ -590,20 +624,36 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 
 	s.log("ready")
 
-	for {
-		frame, err := conn.ReadInterleavedFrame()
-		if err != nil {
-			s.log("ERR: %s", err)
-			return
+	chanConnError := make(chan struct{})
+	go func() {
+		for {
+			frame, err := conn.ReadInterleavedFrame()
+			if err != nil {
+				s.log("ERR: %s", err)
+				close(chanConnError)
+				break
+			}
+
+			trackId, trackFlow := interleavedChannelToTrack(frame.Channel)
+
+			func() {
+				s.p.tcpl.mutex.RLock()
+				defer s.p.tcpl.mutex.RUnlock()
+
+				s.p.tcpl.forwardTrack(s.path, trackId, trackFlow, frame.Content)
+			}()
 		}
+	}()
 
-		trackId, trackFlow := interleavedChannelToTrack(frame.Channel)
-
-		func() {
-			s.p.tcpl.mutex.RLock()
-			defer s.p.tcpl.mutex.RUnlock()
-
-			s.p.tcpl.forwardTrack(s.path, trackId, trackFlow, frame.Content)
-		}()
+	select {
+	case <-s.terminate:
+		return false
+	case <-chanConnError:
+		return true
 	}
+}
+
+func (s *stream) close() {
+	close(s.terminate)
+	<-s.done
 }

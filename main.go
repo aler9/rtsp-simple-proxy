@@ -196,6 +196,16 @@ func newProgram(args args) (*program, error) {
 	return p, nil
 }
 
+func (p *program) close() {
+	for _, s := range p.streams {
+		s.close()
+	}
+
+	p.tcpl.close()
+	p.udplRtcp.close()
+	p.udplRtp.close()
+}
+
 func main() {
 	kingpin.CommandLine.Help = "rtsp-simple-proxy " + Version + "\n\n" +
 		"RTSP proxy."
