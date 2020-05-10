@@ -13,6 +13,7 @@ type serverTcpListener struct {
 	nconn   *net.TCPListener
 	mutex   sync.RWMutex
 	clients map[*serverClient]struct{}
+	done    chan struct{}
 }
 
 func newServerTcpListener(p *program) (*serverTcpListener, error) {
@@ -23,14 +24,15 @@ func newServerTcpListener(p *program) (*serverTcpListener, error) {
 		return nil, err
 	}
 
-	s := &serverTcpListener{
+	l := &serverTcpListener{
 		p:       p,
 		nconn:   nconn,
 		clients: make(map[*serverClient]struct{}),
+		done:    make(chan struct{}),
 	}
 
-	s.log("opened on :%d", p.conf.Server.RtspPort)
-	return s, nil
+	l.log("opened on :%d", p.conf.Server.RtspPort)
+	return l, nil
 }
 
 func (l *serverTcpListener) log(format string, args ...interface{}) {
@@ -44,9 +46,29 @@ func (l *serverTcpListener) run() {
 			break
 		}
 
-		rsc := newServerClient(l.p, nconn)
-		go rsc.run()
+		newServerClient(l.p, nconn)
 	}
+
+	// close clients
+	var doneChans []chan struct{}
+	func() {
+		l.mutex.Lock()
+		defer l.mutex.Unlock()
+		for c := range l.clients {
+			c.close()
+			doneChans = append(doneChans, c.done)
+		}
+	}()
+	for _, c := range doneChans {
+		<-c
+	}
+
+	close(l.done)
+}
+
+func (l *serverTcpListener) close() {
+	l.nconn.Close()
+	<-l.done
 }
 
 func (l *serverTcpListener) forwardTrack(path string, id int, flow trackFlow, frame []byte) {

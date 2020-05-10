@@ -68,7 +68,7 @@ func (l *serverUdpListener) run() {
 
 	close(l.write)
 
-	l.done <- struct{}{}
+	close(l.done)
 }
 
 func (l *serverUdpListener) close() {

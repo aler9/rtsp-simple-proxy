@@ -87,5 +87,5 @@ func (l *streamUdpListener) run() {
 		}()
 	}
 
-	l.done <- struct{}{}
+	close(l.done)
 }
