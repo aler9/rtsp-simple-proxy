@@ -5,6 +5,7 @@ services:
 
 script:
 - make release
+- make test
 
 deploy:
   provider: releases

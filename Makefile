@@ -15,6 +15,12 @@ help:
 	@echo "  travis-setup   setup travis CI"
 	@echo ""
 
+blank :=
+define NL
+
+$(blank)
+endef
+
 mod-tidy:
 	docker run --rm -it -v $(PWD):/s $(BASE_IMAGE) \
 	sh -c "apk add git && cd /s && GOPROXY=direct go get && GOPROXY=direct go mod tidy"
@@ -54,6 +60,30 @@ run:
 	--network=host \
 	temp \
 	/out stdin
+
+define DOCKERFILE_TEST
+FROM $(BASE_IMAGE)
+RUN apk add --no-cache make docker-cli git
+WORKDIR /s
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . ./
+endef
+export DOCKERFILE_TEST
+
+test:
+	echo "$$DOCKERFILE_TEST" | docker build -q . -f - -t temp
+	docker run --rm -it \
+	--network=host \
+	-v /var/run/docker.sock:/var/run/docker.sock:ro \
+	temp \
+	make test-nodocker
+
+test-nodocker:
+	$(foreach IMG,$(shell echo test-images/*/ | xargs -n1 basename), \
+	docker build -q test-images/$(IMG) -t rtsp-simple-proxy-test-$(IMG)$(NL))
+	$(eval export CGO_ENABLED = 0)
+	go test -v .
 
 define DOCKERFILE_RELEASE
 FROM $(BASE_IMAGE)

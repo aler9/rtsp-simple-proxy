@@ -140,6 +140,7 @@ func newStream(p *program, path string, conf streamConf) (*stream, error) {
 		conf:      conf,
 		ur:        ur,
 		proto:     proto,
+		firstTime: true,
 		terminate: make(chan struct{}),
 		done:      make(chan struct{}),
 	}
