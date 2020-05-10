@@ -1,7 +1,7 @@
 FROM amd64/alpine:3.11
 
-ENV VERSION 0.5.5
-RUN wget -O- https://github.com/aler9/rtsp-simple-server/releases/download/v${VERSION}/rtsp-simple-server_v0.5.5_linux_amd64.tar.gz | tar xvzf - \
+ENV VERSION 0.6.0
+RUN wget -O- https://github.com/aler9/rtsp-simple-server/releases/download/v${VERSION}/rtsp-simple-server_v${VERSION}_linux_amd64.tar.gz | tar xvzf - \
     && mv rtsp-simple-server /usr/bin
 
 COPY start.sh /
