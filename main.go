@@ -94,9 +94,9 @@ type program struct {
 	conf      conf
 	protocols map[streamProtocol]struct{}
 	streams   map[string]*stream
-	rtspl     *serverTcpListener
-	rtpl      *serverUdpListener
-	rtcpl     *serverUdpListener
+	tcpl      *serverTcpListener
+	udplRtp   *serverUdpListener
+	udplRtcp  *serverUdpListener
 }
 
 func newProgram(args args) (*program, error) {
@@ -170,17 +170,17 @@ func newProgram(args args) (*program, error) {
 		}
 	}
 
-	p.rtpl, err = newServerUdpListener(p, p.conf.Server.RtpPort, _TRACK_FLOW_RTP)
+	p.udplRtp, err = newServerUdpListener(p, p.conf.Server.RtpPort, _TRACK_FLOW_RTP)
 	if err != nil {
 		return nil, err
 	}
 
-	p.rtcpl, err = newServerUdpListener(p, p.conf.Server.RtcpPort, _TRACK_FLOW_RTCP)
+	p.udplRtcp, err = newServerUdpListener(p, p.conf.Server.RtcpPort, _TRACK_FLOW_RTCP)
 	if err != nil {
 		return nil, err
 	}
 
-	p.rtspl, err = newServerTcpListener(p)
+	p.tcpl, err = newServerTcpListener(p)
 	if err != nil {
 		return nil, err
 	}
@@ -189,9 +189,9 @@ func newProgram(args args) (*program, error) {
 		go s.run()
 	}
 
-	go p.rtpl.run()
-	go p.rtcpl.run()
-	go p.rtspl.run()
+	go p.udplRtp.run()
+	go p.udplRtcp.run()
+	go p.tcpl.run()
 
 	return p, nil
 }

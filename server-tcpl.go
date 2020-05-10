@@ -10,13 +10,13 @@ import (
 
 type serverTcpListener struct {
 	p       *program
-	netl    *net.TCPListener
+	nconn   *net.TCPListener
 	mutex   sync.RWMutex
 	clients map[*serverClient]struct{}
 }
 
 func newServerTcpListener(p *program) (*serverTcpListener, error) {
-	netl, err := net.ListenTCP("tcp", &net.TCPAddr{
+	nconn, err := net.ListenTCP("tcp", &net.TCPAddr{
 		Port: p.conf.Server.RtspPort,
 	})
 	if err != nil {
@@ -25,7 +25,7 @@ func newServerTcpListener(p *program) (*serverTcpListener, error) {
 
 	s := &serverTcpListener{
 		p:       p,
-		netl:    netl,
+		nconn:   nconn,
 		clients: make(map[*serverClient]struct{}),
 	}
 
@@ -39,7 +39,7 @@ func (l *serverTcpListener) log(format string, args ...interface{}) {
 
 func (l *serverTcpListener) run() {
 	for {
-		nconn, err := l.netl.AcceptTCP()
+		nconn, err := l.nconn.AcceptTCP()
 		if err != nil {
 			break
 		}
@@ -54,7 +54,7 @@ func (l *serverTcpListener) forwardTrack(path string, id int, flow trackFlow, fr
 		if c.path == path && c.state == _CLIENT_STATE_PLAY {
 			if c.streamProtocol == _STREAM_PROTOCOL_UDP {
 				if flow == _TRACK_FLOW_RTP {
-					l.p.rtpl.write <- &udpWrite{
+					l.p.udplRtp.write <- &udpWrite{
 						addr: &net.UDPAddr{
 							IP:   c.ip(),
 							Zone: c.zone(),
@@ -63,7 +63,7 @@ func (l *serverTcpListener) forwardTrack(path string, id int, flow trackFlow, fr
 						buf: frame,
 					}
 				} else {
-					l.p.rtcpl.write <- &udpWrite{
+					l.p.udplRtcp.write <- &udpWrite{
 						addr: &net.UDPAddr{
 							IP:   c.ip(),
 							Zone: c.zone(),

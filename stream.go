@@ -88,8 +88,8 @@ func sdpFilter(msgIn *sdp.Message, byteIn []byte) (*sdp.Message, []byte) {
 }
 
 type streamUdpListenerPair struct {
-	rtpl  *streamUdpListener
-	rtcpl *streamUdpListener
+	udplRtp  *streamUdpListener
+	udplRtcp *streamUdpListener
 }
 
 type streamState int
@@ -265,8 +265,8 @@ func (s *stream) run() {
 			serverSdpParsed, serverSdpText := sdpFilter(clientSdpParsed, res.Content)
 
 			func() {
-				s.p.rtspl.mutex.Lock()
-				defer s.p.rtspl.mutex.Unlock()
+				s.p.tcpl.mutex.Lock()
+				defer s.p.tcpl.mutex.Unlock()
 
 				s.clientSdpParsed = clientSdpParsed
 				s.serverSdpText = serverSdpText
@@ -289,16 +289,16 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 
 	defer func() {
 		for _, pair := range streamUdpListenerPairs {
-			pair.rtpl.close()
-			pair.rtcpl.close()
+			pair.udplRtp.close()
+			pair.udplRtcp.close()
 		}
 	}()
 
 	for i, media := range s.clientSdpParsed.Medias {
 		var rtpPort int
 		var rtcpPort int
-		var rtpl *streamUdpListener
-		var rtcpl *streamUdpListener
+		var udplRtp *streamUdpListener
+		var udplRtcp *streamUdpListener
 		func() {
 			for {
 				// choose two consecutive ports in range 65536-10000
@@ -307,14 +307,14 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 				rtcpPort = rtpPort + 1
 
 				var err error
-				rtpl, err = newStreamUdpListener(s.p, rtpPort)
+				udplRtp, err = newStreamUdpListener(s.p, rtpPort)
 				if err != nil {
 					continue
 				}
 
-				rtcpl, err = newStreamUdpListener(s.p, rtcpPort)
+				udplRtcp, err = newStreamUdpListener(s.p, rtcpPort)
 				if err != nil {
-					rtpl.close()
+					udplRtp.close()
 					continue
 				}
 
@@ -355,23 +355,23 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 		})
 		if err != nil {
 			s.log("ERR: %s", err)
-			rtpl.close()
-			rtcpl.close()
+			udplRtp.close()
+			udplRtcp.close()
 			return
 		}
 
 		if res.StatusCode != 200 {
 			s.log("ERR: SETUP returned code %d", res.StatusCode)
-			rtpl.close()
-			rtcpl.close()
+			udplRtp.close()
+			udplRtcp.close()
 			return
 		}
 
 		tsRaw, ok := res.Header["Transport"]
 		if !ok || len(tsRaw) != 1 {
 			s.log("ERR: transport header not provided")
-			rtpl.close()
-			rtcpl.close()
+			udplRtp.close()
+			udplRtcp.close()
 			return
 		}
 
@@ -379,26 +379,26 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 		rtpServerPort, rtcpServerPort := th.GetPorts("server_port")
 		if rtpServerPort == 0 {
 			s.log("ERR: server ports not provided")
-			rtpl.close()
-			rtcpl.close()
+			udplRtp.close()
+			udplRtcp.close()
 			return
 		}
 
-		rtpl.publisherIp = publisherIp
-		rtpl.publisherPort = rtpServerPort
-		rtpl.trackId = i
-		rtpl.flow = _TRACK_FLOW_RTP
-		rtpl.path = s.path
+		udplRtp.publisherIp = publisherIp
+		udplRtp.publisherPort = rtpServerPort
+		udplRtp.trackId = i
+		udplRtp.flow = _TRACK_FLOW_RTP
+		udplRtp.path = s.path
 
-		rtcpl.publisherIp = publisherIp
-		rtcpl.publisherPort = rtcpServerPort
-		rtcpl.trackId = i
-		rtcpl.flow = _TRACK_FLOW_RTCP
-		rtcpl.path = s.path
+		udplRtcp.publisherIp = publisherIp
+		udplRtcp.publisherPort = rtcpServerPort
+		udplRtcp.trackId = i
+		udplRtcp.flow = _TRACK_FLOW_RTCP
+		udplRtcp.path = s.path
 
 		streamUdpListenerPairs = append(streamUdpListenerPairs, streamUdpListenerPair{
-			rtpl:  rtpl,
-			rtcpl: rtcpl,
+			udplRtp:  udplRtp,
+			udplRtcp: udplRtcp,
 		})
 	}
 
@@ -422,26 +422,26 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 	}
 
 	for _, pair := range streamUdpListenerPairs {
-		pair.rtpl.start()
-		pair.rtcpl.start()
+		pair.udplRtp.start()
+		pair.udplRtcp.start()
 	}
 
 	tickerSendKeepalive := time.NewTicker(_KEEPALIVE_INTERVAL)
 	tickerCheckStream := time.NewTicker(_CHECK_STREAM_INTERVAL)
 
 	func() {
-		s.p.rtspl.mutex.Lock()
-		defer s.p.rtspl.mutex.Unlock()
+		s.p.tcpl.mutex.Lock()
+		defer s.p.tcpl.mutex.Unlock()
 		s.state = _STREAM_STATE_READY
 	}()
 
 	defer func() {
-		s.p.rtspl.mutex.Lock()
-		defer s.p.rtspl.mutex.Unlock()
+		s.p.tcpl.mutex.Lock()
+		defer s.p.tcpl.mutex.Unlock()
 		s.state = _STREAM_STATE_STARTING
 
 		// disconnect all clients
-		for c := range s.p.rtspl.clients {
+		for c := range s.p.tcpl.clients {
 			if c.path == s.path {
 				c.close()
 			}
@@ -478,8 +478,8 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) {
 			}
 
 			for _, pair := range streamUdpListenerPairs {
-				getLastFrameTime(pair.rtpl)
-				getLastFrameTime(pair.rtcpl)
+				getLastFrameTime(pair.udplRtp)
+				getLastFrameTime(pair.udplRtcp)
 			}
 
 			if time.Since(lastFrameTime) >= _STREAM_DEAD_AFTER {
@@ -570,18 +570,18 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 	}
 
 	func() {
-		s.p.rtspl.mutex.Lock()
-		defer s.p.rtspl.mutex.Unlock()
+		s.p.tcpl.mutex.Lock()
+		defer s.p.tcpl.mutex.Unlock()
 		s.state = _STREAM_STATE_READY
 	}()
 
 	defer func() {
-		s.p.rtspl.mutex.Lock()
-		defer s.p.rtspl.mutex.Unlock()
+		s.p.tcpl.mutex.Lock()
+		defer s.p.tcpl.mutex.Unlock()
 		s.state = _STREAM_STATE_STARTING
 
 		// disconnect all clients
-		for c := range s.p.rtspl.clients {
+		for c := range s.p.tcpl.clients {
 			if c.path == s.path {
 				c.close()
 			}
@@ -600,10 +600,10 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 		trackId, trackFlow := interleavedChannelToTrack(frame.Channel)
 
 		func() {
-			s.p.rtspl.mutex.RLock()
-			defer s.p.rtspl.mutex.RUnlock()
+			s.p.tcpl.mutex.RLock()
+			defer s.p.tcpl.mutex.RUnlock()
 
-			s.p.rtspl.forwardTrack(s.path, trackId, trackFlow, frame.Content)
+			s.p.tcpl.forwardTrack(s.path, trackId, trackFlow, frame.Content)
 		}()
 	}
 }
