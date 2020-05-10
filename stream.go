@@ -128,6 +128,10 @@ func newStream(p *program, path string, conf streamConf) (*stream, error) {
 		ur.Host = ur.Hostname() + ":554"
 	}
 
+	if conf.Protocol == "" {
+		conf.Protocol = "udp"
+	}
+
 	proto, err := func() (streamProtocol, error) {
 		switch conf.Protocol {
 		case "udp":

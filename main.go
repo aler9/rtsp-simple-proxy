@@ -144,7 +144,7 @@ func newProgram(args args) (*program, error) {
 			protocols[_STREAM_PROTOCOL_TCP] = struct{}{}
 
 		default:
-			return nil, fmt.Errorf("unsupported protocol: %s", proto)
+			return nil, fmt.Errorf("unsupported protocol: '%v'", proto)
 		}
 	}
 	if len(protocols) == 0 {
