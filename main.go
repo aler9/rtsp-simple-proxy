@@ -44,8 +44,8 @@ func (s streamProtocol) String() string {
 }
 
 type streamConf struct {
-	Url    string `yaml:"url"`
-	UseTcp bool   `yaml:"useTcp"`
+	Url      string `yaml:"url"`
+	Protocol string `yaml:"protocol"`
 }
 
 type conf struct {

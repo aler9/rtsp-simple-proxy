@@ -94,12 +94,7 @@ func TestProtocols(t *testing.T) {
 				"streams:\n"+
 				"  testproxy:\n"+
 				"    url: rtsp://localhost:8554/teststream\n"+
-				"    useTcp: "+func() string {
-				if pair[0] == "tcp" {
-					return "yes"
-				}
-				return "no"
-			}()+"\n"),
+				"    protocol: "+pair[0]+"\n"),
 				0644)
 
 			p, err := newProgram(args{
@@ -165,7 +160,7 @@ func TestAuthentication(t *testing.T) {
 		"streams:\n"+
 		"  testproxy:\n"+
 		"    url: rtsp://testuser:testpass@localhost:8554/teststream\n"+
-		"    useTcp: no\n"),
+		"    protocol: udp\n"),
 		0644)
 
 	p, err := newProgram(args{
