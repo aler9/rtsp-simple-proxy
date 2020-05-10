@@ -113,16 +113,17 @@ func newProgram(args args) (*program, error) {
 		return nil, err
 	}
 
+	if len(conf.Server.Protocols) == 0 {
+		conf.Server.Protocols = []string{"tcp", "udp"}
+	}
 	if conf.Server.RtspPort == 0 {
-		return nil, fmt.Errorf("rtsp port not provided")
+		conf.Server.RtspPort = 8554
 	}
-
 	if conf.Server.RtpPort == 0 {
-		return nil, fmt.Errorf("rtp port not provided")
+		conf.Server.RtpPort = 8050
 	}
-
 	if conf.Server.RtcpPort == 0 {
-		return nil, fmt.Errorf("rtcp port not provided")
+		conf.Server.RtcpPort = 8051
 	}
 
 	if (conf.Server.RtpPort % 2) != 0 {

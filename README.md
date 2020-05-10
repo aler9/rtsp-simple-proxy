@@ -25,24 +25,11 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
 
 1. Create a configuration file named `conf.yml`, placed in the same folder of the executable, with the following content:
     ```
-    server:
-      # supported protocols
-      protocols: [ tcp, udp ]
-      # port of the RTSP TCP listener
-      rtspPort: 8554
-      # port of the RTP UDP listener
-      rtpPort: 8050
-      # port of the RTCP UDP listener
-      rtcpPort: 8051
-
     streams:
-      # name of the stream
+      # path of the stream
       mypath:
         # url of the source stream, in the format rtsp://user:pass@host:port/path
-        url: rtsp://localhost:8554/mystream
-        # whether to receive this stream in udp or tcp
-        useTcp: no
-
+        url: rtsp://myhost:8554/mystream
     ```
 
 2. Launch the proxy:
@@ -54,6 +41,28 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
    ```
    vlc rtsp://localhost:8554/mypath
    ```
+
+#### Full configuration file
+
+```
+server:
+  # supported protocols
+  protocols: [ tcp, udp ]
+  # port of the RTSP TCP listener
+  rtspPort: 8554
+  # port of the RTP UDP listener
+  rtpPort: 8050
+  # port of the RTCP UDP listener
+  rtcpPort: 8051
+
+streams:
+  # path of the stream
+  test1:
+    # url of the source stream, in the format rtsp://user:pass@host:port/path
+    url: rtsp://myhost:8554/mystream
+    # whether to use tcp or udp
+    useTcp: no
+```
 
 #### Full command-line usage
 
