@@ -603,7 +603,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) {
 			s.p.rtspl.mutex.RLock()
 			defer s.p.rtspl.mutex.RUnlock()
 
-			s.p.forwardTrack(s.path, trackId, trackFlow, frame.Content)
+			s.p.rtspl.forwardTrack(s.path, trackId, trackFlow, frame.Content)
 		}()
 	}
 }
