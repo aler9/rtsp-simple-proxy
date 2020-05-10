@@ -139,8 +139,6 @@ func newStream(p *program, path string, conf streamConf) (*stream, error) {
 		proto: proto,
 	}
 
-	go s.run()
-
 	return s, nil
 }
 

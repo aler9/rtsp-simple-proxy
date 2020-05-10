@@ -164,6 +164,14 @@ func newProgram(args args) (*program, error) {
 		streams:   make(map[string]*stream),
 	}
 
+	for path, val := range p.conf.Streams {
+		var err error
+		p.streams[path], err = newStream(p, path, val)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	p.rtpl, err = newServerUdpListener(p, p.conf.Server.RtpPort, _TRACK_FLOW_RTP)
 	if err != nil {
 		return nil, err
@@ -179,12 +187,8 @@ func newProgram(args args) (*program, error) {
 		return nil, err
 	}
 
-	for path, val := range p.conf.Streams {
-		var err error
-		p.streams[path], err = newStream(p, path, val)
-		if err != nil {
-			return nil, err
-		}
+	for _, s := range p.streams {
+		go s.run()
 	}
 
 	go p.rtpl.run()
