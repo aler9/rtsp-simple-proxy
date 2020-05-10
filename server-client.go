@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -37,6 +38,7 @@ type serverClient struct {
 	conn           *gortsplib.ConnServer
 	state          clientState
 	path           string
+	readAuth       *gortsplib.AuthServer
 	streamProtocol streamProtocol
 	streamTracks   []*track
 	write          chan *gortsplib.InterleavedFrame
@@ -135,6 +137,44 @@ func (c *serverClient) writeResError(req *gortsplib.Request, code gortsplib.Stat
 	})
 }
 
+var errAuthCritical = errors.New("auth critical")
+var errAuthNotCritical = errors.New("auth not critical")
+
+func (c *serverClient) validateAuth(req *gortsplib.Request, user string, pass string, auth **gortsplib.AuthServer) error {
+	if user == "" {
+		return nil
+	}
+
+	initialRequest := false
+	if *auth == nil {
+		initialRequest = true
+		*auth = gortsplib.NewAuthServer(user, pass)
+	}
+
+	err := (*auth).ValidateHeader(req.Header["Authorization"], req.Method, req.Url)
+	if err != nil {
+		if !initialRequest {
+			c.log("ERR: Unauthorized: %s", err)
+		}
+
+		c.conn.WriteResponse(&gortsplib.Response{
+			StatusCode: gortsplib.StatusUnauthorized,
+			Header: gortsplib.Header{
+				"CSeq":             []string{req.Header["CSeq"][0]},
+				"WWW-Authenticate": (*auth).GenerateHeader(),
+			},
+		})
+
+		if !initialRequest {
+			return errAuthCritical
+		}
+
+		return errAuthNotCritical
+	}
+
+	return nil
+}
+
 func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 	c.log(string(req.Method))
 
@@ -186,6 +226,14 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 			return false
 		}
 
+		err := c.validateAuth(req, c.p.conf.Server.ReadUser, c.p.conf.Server.ReadPass, &c.readAuth)
+		if err != nil {
+			if err == errAuthCritical {
+				return false
+			}
+			return true
+		}
+
 		sdp, err := func() ([]byte, error) {
 			c.p.tcpl.mutex.RLock()
 			defer c.p.tcpl.mutex.RUnlock()
@@ -234,6 +282,14 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		switch c.state {
 		// play
 		case _CLIENT_STATE_STARTING, _CLIENT_STATE_PRE_PLAY:
+			err := c.validateAuth(req, c.p.conf.Server.ReadUser, c.p.conf.Server.ReadPass, &c.readAuth)
+			if err != nil {
+				if err == errAuthCritical {
+					return false
+				}
+				return true
+			}
+
 			// play via UDP
 			if func() bool {
 				_, ok := th["RTP/AVP"]

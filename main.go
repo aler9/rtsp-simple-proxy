@@ -54,6 +54,8 @@ type conf struct {
 		RtspPort  int      `yaml:"rtspPort"`
 		RtpPort   int      `yaml:"rtpPort"`
 		RtcpPort  int      `yaml:"rtcpPort"`
+		ReadUser  string   `yaml:"readUser"`
+		ReadPass  string   `yaml:"readPass"`
 	} `yaml:"server"`
 	Streams map[string]streamConf `yaml:"streams"`
 }

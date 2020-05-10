@@ -88,8 +88,6 @@ func TestProtocols(t *testing.T) {
 				"server:\n"+
 				"  protocols: [ "+pair[1]+" ]\n"+
 				"  rtspPort: 8555\n"+
-				"  rtpPort: 8050\n"+
-				"  rtcpPort: 8051\n"+
 				"\n"+
 				"streams:\n"+
 				"  testproxy:\n"+
@@ -124,7 +122,7 @@ func TestProtocols(t *testing.T) {
 	}
 }
 
-func TestAuthentication(t *testing.T) {
+func TestStreamAuth(t *testing.T) {
 	cnt1, err := newContainer("rtsp-simple-server", "server", []string{
 		"--read-user=testuser",
 		"--read-pass=testpass",
@@ -154,8 +152,6 @@ func TestAuthentication(t *testing.T) {
 		"server:\n"+
 		"  protocols: [ udp ]\n"+
 		"  rtspPort: 8555\n"+
-		"  rtpPort: 8050\n"+
-		"  rtcpPort: 8051\n"+
 		"\n"+
 		"streams:\n"+
 		"  testproxy:\n"+
@@ -176,6 +172,67 @@ func TestAuthentication(t *testing.T) {
 		"-loglevel", "panic",
 		"-rtsp_transport", "udp",
 		"-i", "rtsp://localhost:8555/testproxy",
+		"-vframes", "1",
+		"-f", "image2",
+		"-y", "/dev/null",
+	})
+	require.NoError(t, err)
+	defer cnt3.close()
+
+	cnt3.wait()
+
+	require.Equal(t, "all right\n", string(cnt3.stdout.Bytes()))
+}
+
+func TestServerAuth(t *testing.T) {
+	cnt1, err := newContainer("rtsp-simple-server", "server", []string{})
+	require.NoError(t, err)
+	defer cnt1.close()
+
+	time.Sleep(1 * time.Second)
+
+	cnt2, err := newContainer("ffmpeg", "source", []string{
+		"-hide_banner",
+		"-loglevel", "panic",
+		"-re",
+		"-stream_loop", "-1",
+		"-i", "/emptyvideo.ts",
+		"-c", "copy",
+		"-f", "rtsp",
+		"-rtsp_transport", "udp",
+		"rtsp://localhost:8554/teststream",
+	})
+	require.NoError(t, err)
+	defer cnt2.close()
+
+	time.Sleep(1 * time.Second)
+
+	ioutil.WriteFile("testconf.yml", []byte("\n"+
+		"server:\n"+
+		"  protocols: [ udp ]\n"+
+		"  rtspPort: 8555\n"+
+		"  readUser: testuser\n"+
+		"  readPass: testpass\n"+
+		"\n"+
+		"streams:\n"+
+		"  testproxy:\n"+
+		"    url: rtsp://localhost:8554/teststream\n"+
+		"    protocol: udp\n"),
+		0644)
+
+	p, err := newProgram(args{
+		confPath: "testconf.yml",
+	})
+	require.NoError(t, err)
+	defer p.close()
+
+	time.Sleep(1 * time.Second)
+
+	cnt3, err := newContainer("ffmpeg", "dest", []string{
+		"-hide_banner",
+		"-loglevel", "panic",
+		"-rtsp_transport", "udp",
+		"-i", "rtsp://testuser:testpass@localhost:8555/testproxy",
 		"-vframes", "1",
 		"-f", "image2",
 		"-y", "/dev/null",

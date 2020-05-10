@@ -9,7 +9,7 @@ _rtsp-simple-proxy_ is a simple, ready-to-use and zero-dependency RTSP proxy, a 
 * when there's a NAT / firewall between a stream and the users, in this case the proxy is installed in the NAT and makes the stream available to the outside world.
 
 Features:
-* Receive streams in TCP or UDP
+* Receive multiple streams in TCP or UDP
 * Distribute streams in TCP or UDP
 * Supports the RTP/RTCP streaming protocol
 * Supports digest authentication (i.e. username and password)
@@ -24,20 +24,20 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
 #### Basic usage
 
 1. Create a configuration file named `conf.yml`, placed in the same folder of the executable, with the following content:
-    ```
-    streams:
-      # name of the stream
-      mypath:
-        # url of the source stream, in the format rtsp://user:pass@host:port/path
-        url: rtsp://myhost:8554/mystream
-    ```
+   ```
+   streams:
+     # name of the stream
+     mypath:
+       # url of the source stream, in the format rtsp://user:pass@host:port/path
+       url: rtsp://myhost:8554/mystream
+   ```
 
 2. Launch the proxy:
    ```
    ./rtsp-simple-proxy
    ```
 
-3. Open any stream you have defined in the configuration file by using the stream name as path, for instance with VLC:
+3. Open any stream you have defined in the configuration file, by using the stream name as path, for instance with VLC:
    ```
    vlc rtsp://localhost:8554/mypath
    ```
@@ -54,6 +54,10 @@ server:
   rtpPort: 8050
   # port of the RTCP UDP listener
   rtcpPort: 8051
+  # optional username required to read
+  readUser:
+  # optional password required to read
+  readPass:
 
 streams:
   # name of the stream
