@@ -212,7 +212,7 @@ func main() {
 		"RTSP proxy."
 
 	argVersion := kingpin.Flag("version", "print rtsp-simple-proxy version").Bool()
-	argConfPath := kingpin.Arg("confpath", "path of the config file. Use 'stdin' to read config from stdin").Required().String()
+	argConfPath := kingpin.Arg("confpath", "path of a config file. The default is conf.yml. Use 'stdin' to read config from stdin").Default("conf.yml").String()
 
 	kingpin.Parse()
 

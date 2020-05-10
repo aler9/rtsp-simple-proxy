@@ -54,12 +54,14 @@ streams:
 endef
 export CONFFILE
 
+ARGS ?= stdin
+
 run:
 	echo "$$DOCKERFILE_RUN" | docker build -q . -f - -t temp
 	echo "$$CONFFILE" | docker run --rm -i \
 	--network=host \
 	temp \
-	/out stdin
+	/out $(ARGS)
 
 define DOCKERFILE_TEST
 FROM $(BASE_IMAGE)

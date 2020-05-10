@@ -34,7 +34,7 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
 
 2. Launch the proxy:
    ```
-   ./rtsp-simple-proxy conf.yml
+   ./rtsp-simple-proxy
    ```
 
 3. Open any stream you have defined in the configuration file by using the stream name as path, for instance with VLC:
@@ -78,7 +78,8 @@ Flags:
   --version  print rtsp-simple-proxy version
 
 Args:
-  <confpath>  path of the config file. Use 'stdin' to read config from stdin
+  [<confpath>]  path of a config file. The default is conf.yml. Use 'stdin' to
+                read config from stdin
 ```
 
 ## Links
