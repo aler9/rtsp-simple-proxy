@@ -13,7 +13,7 @@ Features:
 * Distribute streams in TCP or UDP
 * Supports the RTP/RTCP streaming protocol
 * Supports digest authentication (i.e. username and password)
-* Compatible with Linux and Windows, does not require any dependency or interpreter, it's a single executable
+* Compatible with Linux, Windows and Mac, does not require any dependency or interpreter, it's a single executable
 
 ## Installation
 
