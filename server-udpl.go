@@ -51,8 +51,7 @@ func (l *serverUdpListener) log(format string, args ...interface{}) {
 
 func (l *serverUdpListener) run() {
 	go func() {
-		for {
-			w := <-l.write
+		for w := range l.write {
 			l.nconn.SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 			l.nconn.WriteTo(w.buf, w.addr)
 		}
