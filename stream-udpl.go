@@ -17,7 +17,7 @@ type streamUdpListener struct {
 	p             *program
 	nconn         *net.UDPConn
 	state         streamUdpListenerState
-	chanDone      chan struct{}
+	done          chan struct{}
 	publisherIp   net.IP
 	publisherPort int
 	trackId       int
@@ -36,10 +36,10 @@ func newStreamUdpListener(p *program, port int) (*streamUdpListener, error) {
 	}
 
 	l := &streamUdpListener{
-		p:        p,
-		nconn:    nconn,
-		state:    _UDPL_STATE_STARTING,
-		chanDone: make(chan struct{}),
+		p:     p,
+		nconn: nconn,
+		state: _UDPL_STATE_STARTING,
+		done:  make(chan struct{}),
 	}
 
 	return l, nil
@@ -49,7 +49,7 @@ func (l *streamUdpListener) close() {
 	l.nconn.Close()
 
 	if l.state == _UDPL_STATE_RUNNING {
-		<-l.chanDone
+		<-l.done
 	}
 }
 
@@ -59,8 +59,6 @@ func (l *streamUdpListener) start() {
 }
 
 func (l *streamUdpListener) run() {
-	defer func() { l.chanDone <- struct{}{} }()
-
 	for {
 		// create a buffer for each read.
 		// this is necessary since the buffer is propagated with channels
@@ -68,7 +66,7 @@ func (l *streamUdpListener) run() {
 		buf := make([]byte, 2048) // UDP MTU is 1400
 		n, addr, err := l.nconn.ReadFromUDP(buf)
 		if err != nil {
-			return
+			break
 		}
 
 		if !l.publisherIp.Equal(addr.IP) || addr.Port != l.publisherPort {
@@ -88,4 +86,6 @@ func (l *streamUdpListener) run() {
 			l.lastFrameTime = time.Now()
 		}()
 	}
+
+	l.done <- struct{}{}
 }

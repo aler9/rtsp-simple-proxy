@@ -12,10 +12,11 @@ type udpWrite struct {
 }
 
 type serverUdpListener struct {
-	p         *program
-	nconn     *net.UDPConn
-	flow      trackFlow
-	chanWrite chan *udpWrite
+	p     *program
+	nconn *net.UDPConn
+	flow  trackFlow
+	write chan *udpWrite
+	done  chan struct{}
 }
 
 func newServerUdpListener(p *program, port int, flow trackFlow) (*serverUdpListener, error) {
@@ -27,10 +28,11 @@ func newServerUdpListener(p *program, port int, flow trackFlow) (*serverUdpListe
 	}
 
 	l := &serverUdpListener{
-		p:         p,
-		nconn:     nconn,
-		flow:      flow,
-		chanWrite: make(chan *udpWrite),
+		p:     p,
+		nconn: nconn,
+		flow:  flow,
+		write: make(chan *udpWrite),
+		done:  make(chan struct{}),
 	}
 
 	l.log("opened on :%d", port)
@@ -48,20 +50,28 @@ func (l *serverUdpListener) log(format string, args ...interface{}) {
 }
 
 func (l *serverUdpListener) run() {
-
-	go func() {
-		buf := make([]byte, 2048) // UDP MTU is 1400
-
-		for {
-			l.nconn.ReadFromUDP(buf)
-		}
-	}()
-
 	go func() {
 		for {
-			w := <-l.chanWrite
+			w := <-l.write
 			l.nconn.SetWriteDeadline(time.Now().Add(_WRITE_TIMEOUT))
 			l.nconn.WriteTo(w.buf, w.addr)
 		}
 	}()
+
+	buf := make([]byte, 2048) // UDP MTU is 1400
+	for {
+		_, _, err := l.nconn.ReadFromUDP(buf)
+		if err != nil {
+			break
+		}
+	}
+
+	close(l.write)
+
+	l.done <- struct{}{}
+}
+
+func (l *serverUdpListener) close() {
+	l.nconn.Close()
+	<-l.done
 }

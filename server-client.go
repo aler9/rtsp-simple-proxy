@@ -39,7 +39,7 @@ type serverClient struct {
 	path           string
 	streamProtocol streamProtocol
 	streamTracks   []*track
-	chanWrite      chan *gortsplib.InterleavedFrame
+	write          chan *gortsplib.InterleavedFrame
 }
 
 func newServerClient(p *program, nconn net.Conn) *serverClient {
@@ -50,8 +50,8 @@ func newServerClient(p *program, nconn net.Conn) *serverClient {
 			ReadTimeout:  _READ_TIMEOUT,
 			WriteTimeout: _WRITE_TIMEOUT,
 		}),
-		state:     _CLIENT_STATE_STARTING,
-		chanWrite: make(chan *gortsplib.InterleavedFrame),
+		state: _CLIENT_STATE_STARTING,
+		write: make(chan *gortsplib.InterleavedFrame),
 	}
 
 	c.p.mutex.Lock()
@@ -69,7 +69,7 @@ func (c *serverClient) close() error {
 
 	delete(c.p.clients, c)
 	c.conn.NetConn().Close()
-	close(c.chanWrite)
+	close(c.write)
 
 	return nil
 }
@@ -433,7 +433,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 		if c.streamProtocol == _STREAM_PROTOCOL_TCP {
 			// write RTP frames sequentially
 			go func() {
-				for frame := range c.chanWrite {
+				for frame := range c.write {
 					c.conn.WriteInterleavedFrame(frame)
 				}
 			}()

@@ -203,7 +203,7 @@ func (p *program) forwardTrack(path string, id int, flow trackFlow, frame []byte
 		if c.path == path && c.state == _CLIENT_STATE_PLAY {
 			if c.streamProtocol == _STREAM_PROTOCOL_UDP {
 				if flow == _TRACK_FLOW_RTP {
-					p.rtpl.chanWrite <- &udpWrite{
+					p.rtpl.write <- &udpWrite{
 						addr: &net.UDPAddr{
 							IP:   c.ip(),
 							Zone: c.zone(),
@@ -212,7 +212,7 @@ func (p *program) forwardTrack(path string, id int, flow trackFlow, frame []byte
 						buf: frame,
 					}
 				} else {
-					p.rtcpl.chanWrite <- &udpWrite{
+					p.rtcpl.write <- &udpWrite{
 						addr: &net.UDPAddr{
 							IP:   c.ip(),
 							Zone: c.zone(),
@@ -223,7 +223,7 @@ func (p *program) forwardTrack(path string, id int, flow trackFlow, frame []byte
 				}
 
 			} else {
-				c.chanWrite <- &gortsplib.InterleavedFrame{
+				c.write <- &gortsplib.InterleavedFrame{
 					Channel: trackToInterleavedChannel(id, flow),
 					Content: frame,
 				}
