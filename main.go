@@ -12,11 +12,6 @@ import (
 
 var Version string = "v0.0.0"
 
-const (
-	_READ_TIMEOUT  = 5 * time.Second
-	_WRITE_TIMEOUT = 5 * time.Second
-)
-
 type trackFlow int
 
 const (
@@ -49,7 +44,9 @@ type streamConf struct {
 }
 
 type conf struct {
-	Server struct {
+	ReadTimeout  string `yaml:"readTimeout"`
+	WriteTimeout string `yaml:"writeTimeout"`
+	Server       struct {
 		Protocols []string `yaml:"protocols"`
 		RtspPort  int      `yaml:"rtspPort"`
 		RtpPort   int      `yaml:"rtpPort"`
@@ -93,12 +90,14 @@ type args struct {
 }
 
 type program struct {
-	conf      conf
-	protocols map[streamProtocol]struct{}
-	streams   map[string]*stream
-	tcpl      *serverTcpListener
-	udplRtp   *serverUdpListener
-	udplRtcp  *serverUdpListener
+	conf         conf
+	readTimeout  time.Duration
+	writeTimeout time.Duration
+	protocols    map[streamProtocol]struct{}
+	streams      map[string]*stream
+	tcpl         *serverTcpListener
+	udplRtp      *serverUdpListener
+	udplRtcp     *serverUdpListener
 }
 
 func newProgram(args args) (*program, error) {
@@ -115,6 +114,12 @@ func newProgram(args args) (*program, error) {
 		return nil, err
 	}
 
+	if conf.ReadTimeout == "" {
+		conf.ReadTimeout = "5s"
+	}
+	if conf.WriteTimeout == "" {
+		conf.WriteTimeout = "5s"
+	}
 	if len(conf.Server.Protocols) == 0 {
 		conf.Server.Protocols = []string{"tcp", "udp"}
 	}
@@ -134,6 +139,16 @@ func newProgram(args args) (*program, error) {
 
 	if conf.Server.RtcpPort != (conf.Server.RtpPort + 1) {
 		return nil, fmt.Errorf("rtcp port must be rtp port plus 1")
+	}
+
+	readTimeout, err := time.ParseDuration(conf.ReadTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse read timeout: %s", err)
+	}
+
+	writeTimeout, err := time.ParseDuration(conf.WriteTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse write timeout: %s", err)
 	}
 
 	protocols := make(map[streamProtocol]struct{})
@@ -160,9 +175,11 @@ func newProgram(args args) (*program, error) {
 	log.Printf("rtsp-simple-proxy %s", Version)
 
 	p := &program{
-		conf:      *conf,
-		protocols: protocols,
-		streams:   make(map[string]*stream),
+		conf:         *conf,
+		readTimeout:  readTimeout,
+		writeTimeout: writeTimeout,
+		protocols:    protocols,
+		streams:      make(map[string]*stream),
 	}
 
 	for path, val := range p.conf.Streams {

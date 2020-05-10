@@ -45,6 +45,11 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
 #### Full configuration file
 
 ```
+# timeout for read operations
+readTimeout: 5s
+# timeout for write operations
+writeTimeout: 5s
+
 server:
   # supported protocols
   protocols: [ tcp, udp ]

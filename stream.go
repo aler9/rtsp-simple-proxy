@@ -213,8 +213,8 @@ func (s *stream) do() bool {
 
 	conn := gortsplib.NewConnClient(gortsplib.ConnClientConf{
 		NConn:        nconn,
-		ReadTimeout:  _READ_TIMEOUT,
-		WriteTimeout: _WRITE_TIMEOUT,
+		ReadTimeout:  s.p.readTimeout,
+		WriteTimeout: s.p.writeTimeout,
 	})
 
 	res, err := conn.WriteRequest(&gortsplib.Request{
