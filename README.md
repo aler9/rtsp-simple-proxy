@@ -84,7 +84,7 @@ RTSP proxy.
 
 Flags:
   --help     Show context-sensitive help (also try --help-long and --help-man).
-  --version  print rtsp-simple-proxy version
+  --version  print version
 
 Args:
   [<confpath>]  path of a config file. The default is conf.yml. Use 'stdin' to

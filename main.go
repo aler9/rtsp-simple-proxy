@@ -104,7 +104,7 @@ func newProgram(sargs []string) (*program, error) {
 	kingpin.CommandLine.Help = "rtsp-simple-proxy " + Version + "\n\n" +
 		"RTSP proxy."
 
-	argVersion := kingpin.Flag("version", "print rtsp-simple-proxy version").Bool()
+	argVersion := kingpin.Flag("version", "print version").Bool()
 	argConfPath := kingpin.Arg("confpath", "path of a config file. The default is conf.yml. Use 'stdin' to read config from stdin").Default("conf.yml").String()
 
 	kingpin.MustParse(kingpin.CommandLine.Parse(sargs))
@@ -115,7 +115,7 @@ func newProgram(sargs []string) (*program, error) {
 	}
 
 	if args.version == true {
-		fmt.Println("rtsp-simple-proxy " + Version)
+		fmt.Println(Version)
 		os.Exit(0)
 	}
 
