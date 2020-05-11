@@ -84,7 +84,7 @@ func TestProtocols(t *testing.T) {
 
 			time.Sleep(1 * time.Second)
 
-			ioutil.WriteFile("testconf.yml", []byte("\n"+
+			ioutil.WriteFile("conf.yml", []byte("\n"+
 				"server:\n"+
 				"  protocols: [ "+pair[1]+" ]\n"+
 				"  rtspPort: 8555\n"+
@@ -95,9 +95,7 @@ func TestProtocols(t *testing.T) {
 				"    protocol: "+pair[0]+"\n"),
 				0644)
 
-			p, err := newProgram(args{
-				confPath: "testconf.yml",
-			})
+			p, err := newProgram([]string{})
 			require.NoError(t, err)
 			defer p.close()
 
@@ -148,7 +146,7 @@ func TestStreamAuth(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	ioutil.WriteFile("testconf.yml", []byte("\n"+
+	ioutil.WriteFile("conf.yml", []byte("\n"+
 		"server:\n"+
 		"  protocols: [ udp ]\n"+
 		"  rtspPort: 8555\n"+
@@ -159,9 +157,7 @@ func TestStreamAuth(t *testing.T) {
 		"    protocol: udp\n"),
 		0644)
 
-	p, err := newProgram(args{
-		confPath: "testconf.yml",
-	})
+	p, err := newProgram([]string{})
 	require.NoError(t, err)
 	defer p.close()
 
@@ -207,7 +203,7 @@ func TestServerAuth(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	ioutil.WriteFile("testconf.yml", []byte("\n"+
+	ioutil.WriteFile("conf.yml", []byte("\n"+
 		"server:\n"+
 		"  protocols: [ udp ]\n"+
 		"  rtspPort: 8555\n"+
@@ -220,9 +216,7 @@ func TestServerAuth(t *testing.T) {
 		"    protocol: udp\n"),
 		0644)
 
-	p, err := newProgram(args{
-		confPath: "testconf.yml",
-	})
+	p, err := newProgram([]string{})
 	require.NoError(t, err)
 	defer p.close()
 

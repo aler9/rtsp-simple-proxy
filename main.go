@@ -100,7 +100,20 @@ type program struct {
 	udplRtcp     *serverUdpListener
 }
 
-func newProgram(args args) (*program, error) {
+func newProgram(sargs []string) (*program, error) {
+	kingpin.CommandLine.Help = "rtsp-simple-proxy " + Version + "\n\n" +
+		"RTSP proxy."
+
+	argVersion := kingpin.Flag("version", "print rtsp-simple-proxy version").Bool()
+	argConfPath := kingpin.Arg("confpath", "path of a config file. The default is conf.yml. Use 'stdin' to read config from stdin").Default("conf.yml").String()
+
+	kingpin.MustParse(kingpin.CommandLine.Parse(sargs))
+
+	args := args{
+		version:  *argVersion,
+		confPath: *argConfPath,
+	}
+
 	if args.version == true {
 		fmt.Println("rtsp-simple-proxy " + Version)
 		os.Exit(0)
@@ -133,24 +146,14 @@ func newProgram(args args) (*program, error) {
 		conf.Server.RtcpPort = 8051
 	}
 
-	if (conf.Server.RtpPort % 2) != 0 {
-		return nil, fmt.Errorf("rtp port must be even")
-	}
-
-	if conf.Server.RtcpPort != (conf.Server.RtpPort + 1) {
-		return nil, fmt.Errorf("rtcp port must be rtp port plus 1")
-	}
-
 	readTimeout, err := time.ParseDuration(conf.ReadTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse read timeout: %s", err)
 	}
-
 	writeTimeout, err := time.ParseDuration(conf.WriteTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse write timeout: %s", err)
 	}
-
 	protocols := make(map[streamProtocol]struct{})
 	for _, proto := range conf.Server.Protocols {
 		switch proto {
@@ -167,7 +170,12 @@ func newProgram(args args) (*program, error) {
 	if len(protocols) == 0 {
 		return nil, fmt.Errorf("no protocols provided")
 	}
-
+	if (conf.Server.RtpPort % 2) != 0 {
+		return nil, fmt.Errorf("rtp port must be even")
+	}
+	if conf.Server.RtcpPort != (conf.Server.RtpPort + 1) {
+		return nil, fmt.Errorf("rtcp port must be rtp port plus 1")
+	}
 	if len(conf.Streams) == 0 {
 		return nil, fmt.Errorf("no streams provided")
 	}
@@ -227,18 +235,7 @@ func (p *program) close() {
 }
 
 func main() {
-	kingpin.CommandLine.Help = "rtsp-simple-proxy " + Version + "\n\n" +
-		"RTSP proxy."
-
-	argVersion := kingpin.Flag("version", "print rtsp-simple-proxy version").Bool()
-	argConfPath := kingpin.Arg("confpath", "path of a config file. The default is conf.yml. Use 'stdin' to read config from stdin").Default("conf.yml").String()
-
-	kingpin.Parse()
-
-	_, err := newProgram(args{
-		version:  *argVersion,
-		confPath: *argConfPath,
-	})
+	_, err := newProgram(os.Args[1:])
 	if err != nil {
 		log.Fatal("ERR: ", err)
 	}
