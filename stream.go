@@ -254,7 +254,7 @@ func (s *stream) do() bool {
 		return true
 	}
 
-	if res.StatusCode != 200 {
+	if res.StatusCode != gortsplib.StatusOK {
 		s.log("ERR: OPTIONS returned code %d", res.StatusCode)
 		return true
 	}
@@ -273,7 +273,7 @@ func (s *stream) do() bool {
 		return true
 	}
 
-	if res.StatusCode != 200 {
+	if res.StatusCode != gortsplib.StatusOK {
 		s.log("ERR: DESCRIBE returned code %d", res.StatusCode)
 		return true
 	}
@@ -392,7 +392,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) bool {
 			return true
 		}
 
-		if res.StatusCode != 200 {
+		if res.StatusCode != gortsplib.StatusOK {
 			s.log("ERR: SETUP returned code %d", res.StatusCode)
 			udplRtp.close()
 			udplRtcp.close()
@@ -448,7 +448,7 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) bool {
 		return true
 	}
 
-	if res.StatusCode != 200 {
+	if res.StatusCode != gortsplib.StatusOK {
 		s.log("ERR: PLAY returned code %d", res.StatusCode)
 		return true
 	}
@@ -568,7 +568,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) bool {
 			return true
 		}
 
-		if res.StatusCode != 200 {
+		if res.StatusCode != gortsplib.StatusOK {
 			s.log("ERR: SETUP returned code %d", res.StatusCode)
 			return true
 		}
@@ -602,7 +602,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) bool {
 		return true
 	}
 
-	if res.StatusCode != 200 {
+	if res.StatusCode != gortsplib.StatusOK {
 		s.log("ERR: PLAY returned code %d", res.StatusCode)
 		return true
 	}
