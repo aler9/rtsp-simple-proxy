@@ -194,7 +194,7 @@ func newProgram(sargs []string) (*program, error) {
 		var err error
 		p.streams[path], err = newStream(p, path, val)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in stream '%s': %s", path, err)
 		}
 	}
 

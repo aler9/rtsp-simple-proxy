@@ -120,16 +120,23 @@ func newStream(p *program, path string, conf streamConf) (*stream, error) {
 		return nil, err
 	}
 
-	if ur.Scheme != "rtsp" {
-		return nil, fmt.Errorf("unsupported scheme: %s", ur.Scheme)
-	}
-
 	if ur.Port() == "" {
 		ur.Host = ur.Hostname() + ":554"
 	}
-
 	if conf.Protocol == "" {
 		conf.Protocol = "udp"
+	}
+
+	if ur.Scheme != "rtsp" {
+		return nil, fmt.Errorf("unsupported scheme: %s", ur.Scheme)
+	}
+	if ur.User != nil {
+		pass, _ := ur.User.Password()
+		user := ur.User.Username()
+		if user != "" && pass == "" ||
+			user == "" && pass != "" {
+			fmt.Errorf("username and password must be both provided")
+		}
 	}
 
 	proto, err := func() (streamProtocol, error) {
@@ -211,11 +218,28 @@ func (s *stream) do() bool {
 	}
 	defer nconn.Close()
 
-	conn := gortsplib.NewConnClient(gortsplib.ConnClientConf{
-		NConn:        nconn,
+	conn, err := gortsplib.NewConnClient(gortsplib.ConnClientConf{
+		NConn: nconn,
+		Username: func() string {
+			if s.ur.User != nil {
+				return s.ur.User.Username()
+			}
+			return ""
+		}(),
+		Password: func() string {
+			if s.ur.User != nil {
+				pass, _ := s.ur.User.Password()
+				return pass
+			}
+			return ""
+		}(),
 		ReadTimeout:  s.p.readTimeout,
 		WriteTimeout: s.p.writeTimeout,
 	})
+	if err != nil {
+		s.log("ERR: %s", err)
+		return true
+	}
 
 	res, err := conn.WriteRequest(&gortsplib.Request{
 		Method: gortsplib.OPTIONS,
@@ -247,40 +271,6 @@ func (s *stream) do() bool {
 	if err != nil {
 		s.log("ERR: %s", err)
 		return true
-	}
-
-	if res.StatusCode == 401 {
-		if s.ur.User == nil {
-			s.log("ERR: 401 but user not provided")
-			return true
-		}
-
-		user := s.ur.User.Username()
-		pass, _ := s.ur.User.Password()
-		if pass == "" {
-			s.log("ERR: 401 but password not provided")
-			return true
-		}
-
-		err = conn.SetCredentials(res.Header["WWW-Authenticate"], user, pass)
-		if err != nil {
-			s.log("ERR: unable to set credentials: %s", err)
-			return true
-		}
-
-		res, err = conn.WriteRequest(&gortsplib.Request{
-			Method: gortsplib.DESCRIBE,
-			Url: &url.URL{
-				Scheme:   "rtsp",
-				Host:     s.ur.Host,
-				Path:     s.ur.Path,
-				RawQuery: s.ur.RawQuery,
-			},
-		})
-		if err != nil {
-			s.log("ERR: %s", err)
-			return true
-		}
 	}
 
 	if res.StatusCode != 200 {
