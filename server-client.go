@@ -33,6 +33,20 @@ const (
 	_CLIENT_STATE_PLAY
 )
 
+func (cs clientState) String() string {
+	switch cs {
+	case _CLIENT_STATE_STARTING:
+		return "STARTING"
+
+	case _CLIENT_STATE_PRE_PLAY:
+		return "PRE_PLAY"
+
+	case _CLIENT_STATE_PLAY:
+		return "PLAY"
+	}
+	return "UNKNOWN"
+}
+
 type serverClient struct {
 	p              *program
 	conn           *gortsplib.ConnServer
@@ -222,7 +236,8 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 
 	case gortsplib.DESCRIBE:
 		if c.state != _CLIENT_STATE_STARTING {
-			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("client is in state '%d'", c.state))
+			c.writeResError(req, gortsplib.StatusBadRequest,
+				fmt.Errorf("client is in state '%s' instead of '%s'", c.state, _CLIENT_STATE_STARTING))
 			return false
 		}
 
@@ -435,13 +450,14 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 			}
 
 		default:
-			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("client is in state '%d'", c.state))
+			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("client is in state '%s'", c.state))
 			return false
 		}
 
 	case gortsplib.PLAY:
 		if c.state != _CLIENT_STATE_PRE_PLAY {
-			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("client is in state '%d'", c.state))
+			c.writeResError(req, gortsplib.StatusBadRequest,
+				fmt.Errorf("client is in state '%s' instead of '%s'", c.state, _CLIENT_STATE_PRE_PLAY))
 			return false
 		}
 
@@ -518,7 +534,8 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 
 	case gortsplib.PAUSE:
 		if c.state != _CLIENT_STATE_PLAY {
-			c.writeResError(req, gortsplib.StatusBadRequest, fmt.Errorf("client is in state '%d'", c.state))
+			c.writeResError(req, gortsplib.StatusBadRequest,
+				fmt.Errorf("client is in state '%s' instead of '%s'", c.state, _CLIENT_STATE_PLAY))
 			return false
 		}
 
