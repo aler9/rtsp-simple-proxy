@@ -4,7 +4,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/aler9/rtsp-simple-proxy)](https://goreportcard.com/report/github.com/aler9/rtsp-simple-proxy)
 [![Build Status](https://travis-ci.org/aler9/rtsp-simple-proxy.svg?branch=master)](https://travis-ci.org/aler9/rtsp-simple-proxy)
 
-_rtsp-simple-proxy_ is a simple, ready-to-use and zero-dependency RTSP proxy, a program that receives one or more existing RTSP streams and makes them available to other users. A proxy is usually deployed in one of these scenarios:
+_rtsp-simple-proxy_ is a simple, ready-to-use and zero-dependency RTSP proxy, a software that receives one or more existing RTSP streams and makes them available to other users. A proxy is usually deployed in one of these scenarios:
 * when there are multiple users that are receiving a stream and the bandwidth is limited, so the proxy is used to receive the stream once. Users can then connect to the proxy instead of the original source.
 * when there's a NAT / firewall between a stream and the users, in this case the proxy is installed in the NAT and makes the stream available to the outside world.
 
