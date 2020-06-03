@@ -24,7 +24,7 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
 #### Basic usage
 
 1. Create a configuration file named `conf.yml`, placed in the same folder of the executable, with the following content:
-   ```
+   ```yaml
    streams:
      # name of the stream
      mypath:
@@ -44,7 +44,7 @@ Precompiled binaries are available in the [release](https://github.com/aler9/rts
 
 #### Full configuration file
 
-```
+```yaml
 # timeout of read operations
 readTimeout: 5s
 # timeout of write operations
