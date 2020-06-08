@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"testing"
@@ -10,6 +11,41 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+var ownDockerIp = func() string {
+	out, err := exec.Command("docker", "network", "inspect", "bridge",
+		"-f", "{{range .IPAM.Config}}{{.Subnet}}{{end}}").Output()
+	if err != nil {
+		panic(err)
+	}
+
+	_, ipnet, err := net.ParseCIDR(string(out[:len(out)-1]))
+	if err != nil {
+		panic(err)
+	}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, i := range ifaces {
+		addrs, err := i.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			if v, ok := addr.(*net.IPNet); ok {
+				if ipnet.Contains(v.IP) {
+					return v.IP.String()
+				}
+			}
+		}
+	}
+
+	panic("IP not found")
+}()
 
 type container struct {
 	name   string
@@ -25,8 +61,7 @@ func newContainer(image string, name string, args []string) (*container, error) 
 	exec.Command("docker", "kill", "rtsp-simple-proxy-test-"+name).Run()
 	exec.Command("docker", "wait", "rtsp-simple-proxy-test-"+name).Run()
 
-	cmd := []string{"docker", "run", "--network=host",
-		"--name=rtsp-simple-proxy-test-" + name,
+	cmd := []string{"docker", "run", "--name=rtsp-simple-proxy-test-" + name,
 		"rtsp-simple-proxy-test-" + image}
 	cmd = append(cmd, args...)
 	ecmd := exec.Command(cmd[0], cmd[1:]...)
@@ -54,6 +89,13 @@ func (c *container) wait() {
 	exec.Command("docker", "wait", "rtsp-simple-proxy-test-"+c.name).Run()
 }
 
+func (c *container) ip() string {
+	byts, _ := exec.Command("docker", "inspect", "-f",
+		"{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+		"rtsp-simple-proxy-test-"+c.name).Output()
+	return string(byts[:len(byts)-1])
+}
+
 func TestProtocols(t *testing.T) {
 	for _, pair := range [][2]string{
 		{"udp", "udp"},
@@ -77,7 +119,7 @@ func TestProtocols(t *testing.T) {
 				"-c", "copy",
 				"-f", "rtsp",
 				"-rtsp_transport", "udp",
-				"rtsp://localhost:8554/teststream",
+				"rtsp://" + cnt1.ip() + ":8554/teststream",
 			})
 			require.NoError(t, err)
 			defer cnt2.close()
@@ -91,7 +133,7 @@ func TestProtocols(t *testing.T) {
 				"\n"+
 				"streams:\n"+
 				"  testproxy:\n"+
-				"    url: rtsp://localhost:8554/teststream\n"+
+				"    url: rtsp://"+cnt1.ip()+":8554/teststream\n"+
 				"    protocol: "+pair[0]+"\n"),
 				0644)
 
@@ -105,7 +147,7 @@ func TestProtocols(t *testing.T) {
 				"-hide_banner",
 				"-loglevel", "panic",
 				"-rtsp_transport", pair[1],
-				"-i", "rtsp://localhost:8555/testproxy",
+				"-i", "rtsp://" + ownDockerIp + ":8555/testproxy",
 				"-vframes", "1",
 				"-f", "image2",
 				"-y", "/dev/null",
@@ -139,7 +181,7 @@ func TestStreamAuth(t *testing.T) {
 		"-c", "copy",
 		"-f", "rtsp",
 		"-rtsp_transport", "udp",
-		"rtsp://localhost:8554/teststream",
+		"rtsp://" + cnt1.ip() + ":8554/teststream",
 	})
 	require.NoError(t, err)
 	defer cnt2.close()
@@ -153,7 +195,7 @@ func TestStreamAuth(t *testing.T) {
 		"\n"+
 		"streams:\n"+
 		"  testproxy:\n"+
-		"    url: rtsp://testuser:testpass@localhost:8554/teststream\n"+
+		"    url: rtsp://testuser:testpass@"+cnt1.ip()+":8554/teststream\n"+
 		"    protocol: udp\n"),
 		0644)
 
@@ -167,7 +209,7 @@ func TestStreamAuth(t *testing.T) {
 		"-hide_banner",
 		"-loglevel", "panic",
 		"-rtsp_transport", "udp",
-		"-i", "rtsp://localhost:8555/testproxy",
+		"-i", "rtsp://" + ownDockerIp + ":8555/testproxy",
 		"-vframes", "1",
 		"-f", "image2",
 		"-y", "/dev/null",
@@ -196,7 +238,7 @@ func TestServerAuth(t *testing.T) {
 		"-c", "copy",
 		"-f", "rtsp",
 		"-rtsp_transport", "udp",
-		"rtsp://localhost:8554/teststream",
+		"rtsp://" + cnt1.ip() + ":8554/teststream",
 	})
 	require.NoError(t, err)
 	defer cnt2.close()
@@ -212,7 +254,7 @@ func TestServerAuth(t *testing.T) {
 		"\n"+
 		"streams:\n"+
 		"  testproxy:\n"+
-		"    url: rtsp://localhost:8554/teststream\n"+
+		"    url: rtsp://"+cnt1.ip()+":8554/teststream\n"+
 		"    protocol: udp\n"),
 		0644)
 
@@ -226,7 +268,7 @@ func TestServerAuth(t *testing.T) {
 		"-hide_banner",
 		"-loglevel", "panic",
 		"-rtsp_transport", "udp",
-		"-i", "rtsp://testuser:testpass@localhost:8555/testproxy",
+		"-i", "rtsp://testuser:testpass@" + ownDockerIp + ":8555/testproxy",
 		"-vframes", "1",
 		"-f", "image2",
 		"-y", "/dev/null",
