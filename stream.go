@@ -291,27 +291,46 @@ func (s *stream) runUdp(conn *gortsplib.ConnClient) bool {
 
 		res, err := conn.WriteRequest(&gortsplib.Request{
 			Method: gortsplib.SETUP,
-			Url: &url.URL{
-				Scheme: "rtsp",
-				Host:   s.ur.Host,
-				Path: func() string {
-					ret := s.ur.Path
+			Url: func() *url.URL {
+				control := media.Attributes.Value("control")
 
-					if len(ret) == 0 || ret[len(ret)-1] != '/' {
-						ret += "/"
+				// no control attribute
+				if control == "" {
+					return s.ur
+				}
+
+				// absolute path
+				if strings.HasPrefix(control, "rtsp://") {
+					ur, err := url.Parse(control)
+					if err != nil {
+						return s.ur
 					}
+					return ur
+				}
 
-					control := media.Attributes.Value("control")
-					if control != "" {
-						ret += control
-					} else {
-						ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
-					}
+				// relative path
+				return &url.URL{
+					Scheme: "rtsp",
+					Host:   s.ur.Host,
+					Path: func() string {
+						ret := s.ur.Path
 
-					return ret
-				}(),
-				RawQuery: s.ur.RawQuery,
-			},
+						if len(ret) == 0 || ret[len(ret)-1] != '/' {
+							ret += "/"
+						}
+
+						control := media.Attributes.Value("control")
+						if control != "" {
+							ret += control
+						} else {
+							ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+						}
+
+						return ret
+					}(),
+					RawQuery: s.ur.RawQuery,
+				}
+			}(),
 			Header: gortsplib.Header{
 				"Transport": []string{strings.Join([]string{
 					"RTP/AVP/UDP",
@@ -469,27 +488,46 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) bool {
 
 		res, err := conn.WriteRequest(&gortsplib.Request{
 			Method: gortsplib.SETUP,
-			Url: &url.URL{
-				Scheme: "rtsp",
-				Host:   s.ur.Host,
-				Path: func() string {
-					ret := s.ur.Path
+			Url: func() *url.URL {
+				control := media.Attributes.Value("control")
 
-					if len(ret) == 0 || ret[len(ret)-1] != '/' {
-						ret += "/"
+				// no control attribute
+				if control == "" {
+					return s.ur
+				}
+
+				// absolute path
+				if strings.HasPrefix(control, "rtsp://") {
+					ur, err := url.Parse(control)
+					if err != nil {
+						return s.ur
 					}
+					return ur
+				}
 
-					control := media.Attributes.Value("control")
-					if control != "" {
-						ret += control
-					} else {
-						ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
-					}
+				// relative path
+				return &url.URL{
+					Scheme: "rtsp",
+					Host:   s.ur.Host,
+					Path: func() string {
+						ret := s.ur.Path
 
-					return ret
-				}(),
-				RawQuery: s.ur.RawQuery,
-			},
+						if len(ret) == 0 || ret[len(ret)-1] != '/' {
+							ret += "/"
+						}
+
+						control := media.Attributes.Value("control")
+						if control != "" {
+							ret += control
+						} else {
+							ret += "trackID=" + strconv.FormatInt(int64(i+1), 10)
+						}
+
+						return ret
+					}(),
+					RawQuery: s.ur.RawQuery,
+				}
+			}(),
 			Header: gortsplib.Header{
 				"Transport": []string{strings.Join([]string{
 					"RTP/AVP/TCP",
