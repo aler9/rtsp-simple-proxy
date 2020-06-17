@@ -561,7 +561,7 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) bool {
 		}
 	}
 
-	res, err := conn.WriteRequest(&gortsplib.Request{
+	err := conn.WriteRequestNoResponse(&gortsplib.Request{
 		Method: gortsplib.PLAY,
 		Url: &url.URL{
 			Scheme:   "rtsp",
@@ -575,9 +575,25 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) bool {
 		return true
 	}
 
-	if res.StatusCode != gortsplib.StatusOK {
-		s.log("ERR: PLAY returned code %d (%s)", res.StatusCode, res.StatusMessage)
-		return true
+outer:
+	for {
+		vres, err := conn.ReadInterleavedFrameOrResponse()
+		if err != nil {
+			s.log("ERR: %s", err)
+			return true
+		}
+
+		switch res := vres.(type) {
+		case *gortsplib.Response:
+			if res.StatusCode != gortsplib.StatusOK {
+				s.log("ERR: PLAY returned code %d (%s)", res.StatusCode, res.StatusMessage)
+				return true
+			}
+			break outer
+
+		case *gortsplib.InterleavedFrame:
+			// ignore the frames sent before the response
+		}
 	}
 
 	func() {
