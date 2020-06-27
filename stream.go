@@ -578,7 +578,10 @@ func (s *stream) runTcp(conn *gortsplib.ConnClient) bool {
 
 outer:
 	for {
-		vres, err := conn.ReadInterleavedFrameOrResponse()
+		frame := &gortsplib.InterleavedFrame{
+			Content: make([]byte, 512*1024),
+		}
+		vres, err := conn.ReadInterleavedFrameOrResponse(frame)
 		if err != nil {
 			s.log("ERR: %s", err)
 			return true
@@ -621,7 +624,10 @@ outer:
 	chanConnError := make(chan struct{})
 	go func() {
 		for {
-			frame, err := conn.ReadInterleavedFrame()
+			frame := &gortsplib.InterleavedFrame{
+				Content: make([]byte, 512*1024),
+			}
+			err := conn.ReadInterleavedFrame(frame)
 			if err != nil {
 				s.log("ERR: %s", err)
 				close(chanConnError)
