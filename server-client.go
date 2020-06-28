@@ -273,7 +273,7 @@ func (c *serverClient) handleRequest(req *gortsplib.Request) bool {
 			StatusCode: gortsplib.StatusOK,
 			Header: gortsplib.Header{
 				"CSeq":         []string{cseq[0]},
-				"Content-Base": []string{req.Url.String()},
+				"Content-Base": []string{req.Url.String() + "/"},
 				"Content-Type": []string{"application/sdp"},
 			},
 			Content: sdp,
