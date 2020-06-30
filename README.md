@@ -1,4 +1,12 @@
 
+# DEPRECATED - Merged into rtsp-simple-server
+
+This project has been merged into rtsp-simple-server; please look at this page for instructions on how to setup a RTSP proxy:
+
+https://github.com/aler9/rtsp-simple-server#usage-as-an-rtsp-proxy
+
+<br />
+
 # rtsp-simple-proxy
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/aler9/rtsp-simple-proxy)](https://goreportcard.com/report/github.com/aler9/rtsp-simple-proxy)
