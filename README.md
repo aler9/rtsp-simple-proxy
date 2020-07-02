@@ -3,7 +3,7 @@
 
 This project has been merged into rtsp-simple-server; please look at this page for instructions on how to setup a RTSP proxy:
 
-https://github.com/aler9/rtsp-simple-server#usage-as-an-rtsp-proxy
+https://github.com/aler9/rtsp-simple-server#usage-as-rtsp-proxy
 
 <br />
 
